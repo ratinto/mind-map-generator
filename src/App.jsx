@@ -9,6 +9,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
+
 let id = 0
 const getId = () => `node_${id++}`
 
@@ -24,6 +25,7 @@ export default function App() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [nodeText, setNodeText] = useState('')
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
@@ -33,7 +35,7 @@ export default function App() {
   const addNode = () => {
     const newNode = {
       id: getId(),
-      data: { label: `New Idea` },
+      data: { label: nodeText },
       position: {
         x: Math.random() * 250,
         y: Math.random() * 250,
@@ -44,9 +46,18 @@ export default function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      <button onClick={addNode} style={{ position: 'absolute', zIndex: 10, left: 10, top: 10 }}>
-        Add Node
-      </button>
+      <input
+        type="text"
+        onChange={(e) => setNodeText(e.target.value)}
+        className='bg-red-100'
+      />
+      <button
+  onClick={addNode}
+  className="absolute top-2 left-2 z-10 bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 transition"
+>
+  Add Node
+</button>
+
 
       <ReactFlow
         nodes={nodes}
@@ -55,6 +66,7 @@ export default function App() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         fitView
+        proOptions={{ hideAttribution: true }}
       >
         <MiniMap />
         <Controls />
