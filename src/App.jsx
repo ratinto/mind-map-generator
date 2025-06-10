@@ -1,73 +1,96 @@
-import React, { useCallback, useState } from "react";
-import ReactFlow, {
-  MiniMap,
-  Controls,
-  Background,
-  addEdge,
-  useNodesState,
-  useEdgesState,
-} from "reactflow";
-import "reactflow/dist/style.css";
-
-let id = 0;
-const getId = () => `node_${id++}`;
+import React, { useState, useEffect } from "react";
+import MindMapEditor from "./components/MindMapEditor";
+import Dashboard from "./components/Dashboard";
+import { v4 as uuidv4 } from 'uuid';
+import './App.css';
 
 export default function App() {
-
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [nodeText, setNodeText] = useState("");
-
-  const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
-  );
+  const [view, setView] = useState('dashboard'); // 'dashboard' or 'editor'
+  const [currentMindMapId, setCurrentMindMapId] = useState(null);
+  const [savedMindmaps, setSavedMindmaps] = useState([]);
   
+  // Load saved mindmaps from localStorage on initial render
+  useEffect(() => {
+    const savedData = localStorage.getItem('mindmaps');
+    if (savedData) {
+      setSavedMindmaps(JSON.parse(savedData));
+    }
+  }, []);
 
-  const addNode = () => {
-    const newNode = {
-      id: getId(),
-      data: { label: nodeText },
-      position: {
-        x: Math.random() * 250,
-        y: Math.random() * 250,
-      },
+  const handleCreateNewMindMap = () => {
+    setCurrentMindMapId(null);
+    setView('editor');
+  };
+
+  const handleLoadMindMap = (id) => {
+    setCurrentMindMapId(id);
+    setView('editor');
+  };
+
+  const handleSaveMindMap = (name, nodes, edges) => {
+    const timestamp = new Date().toISOString();
+    let updatedMindmaps = [...savedMindmaps];
+    
+    if (currentMindMapId) {
+      // Update existing mindmap
+      updatedMindmaps = updatedMindmaps.map(mindmap => 
+        mindmap.id === currentMindMapId 
+          ? { ...mindmap, name, nodes, edges, updatedAt: timestamp }
+          : mindmap
+      );
+    } else {
+      // Create new mindmap
+      const newMindMap = {
+        id: uuidv4(),
+        name,
+        nodes,
+        edges,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      updatedMindmaps.push(newMindMap);
+      setCurrentMindMapId(newMindMap.id);
+    }
+    
+    setSavedMindmaps(updatedMindmaps);
+    localStorage.setItem('mindmaps', JSON.stringify(updatedMindmaps));
+    
+    // Show success notification
+    alert(`Mind map "${name}" saved successfully!`);
+  };
+
+  const handleBackToDashboard = () => {
+    setView('dashboard');
+  };
+
+  // Get current mindmap data if editing existing one
+  const getCurrentMindMapData = () => {
+    if (!currentMindMapId) return { initialNodes: [], initialEdges: [] };
+    
+    const currentMindMap = savedMindmaps.find(m => m.id === currentMindMapId);
+    if (!currentMindMap) return { initialNodes: [], initialEdges: [] };
+    
+    return {
+      initialNodes: currentMindMap.nodes,
+      initialEdges: currentMindMap.edges
     };
-    setNodes((nds) => [...nds,newNode]);
-    setNodeText("");
   };
 
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        fitView
-        proOptions={{ hideAttribution: true }}
-      >
-        <div className="absolute top-4 left-4 z-10 bg-white p-3 rounded shadow-lg flex gap-2 items-center">
-          <input
-            type="text"
-            value={nodeText}
-            onChange={(e) => setNodeText(e.target.value)}
-            placeholder="Enter node text"
-            className="px-3 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-          <button
-            onClick={addNode}
-            className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 transition"
-          >
-            Add Node
-          </button>
-        </div>
-
-        <MiniMap pannable="true" zoomable />
-        <Controls />
-        <Background />
-      </ReactFlow>
+    <div className="app-container">
+      {view === 'dashboard' ? (
+        <Dashboard 
+          savedMindmaps={savedMindmaps}
+          onLoadMindmap={handleLoadMindMap}
+          onCreateNew={handleCreateNewMindMap}
+        />
+      ) : (
+        <MindMapEditor 
+          {...getCurrentMindMapData()}
+          onSave={handleSaveMindMap}
+          onBackToDashboard={handleBackToDashboard}
+        />
+      )}
     </div>
   );
 }
