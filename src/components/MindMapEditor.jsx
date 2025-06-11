@@ -22,7 +22,7 @@ export default function MindMapEditor({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [nodeText, setNodeText] = useState("");
   const [mindMapName, setMindMapName] = useState("Untitled Mind Map");
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); 
 
   // Reset id counter based on existing nodes
   useEffect(() => {
