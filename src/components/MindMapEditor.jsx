@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -22,6 +23,8 @@ export default function MindMapEditor({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [nodeText, setNodeText] = useState("");
+  const [name, setName] = useState("Mind Tinker Board");
+  const navigate = useNavigate();
 
   // Load mind map if editing
   useEffect(() => {
@@ -31,6 +34,7 @@ export default function MindMapEditor({
         .then((data) => {
           setNodes(data.nodes);
           setEdges(data.edges);
+          setName(data.name || "Mind Tinker Board");
         });
     }
     // eslint-disable-next-line
@@ -62,7 +66,7 @@ export default function MindMapEditor({
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: "Mind Map", // Optionally allow renaming
+        name,
         nodes,
         edges,
       }),
@@ -70,7 +74,7 @@ export default function MindMapEditor({
       .then((res) => res.json())
       .then((data) => {
         if (onSaved) onSaved(nodes, edges);
-        alert("Mind map saved!");
+        alert("Board saved!");
       });
   };
 
@@ -87,29 +91,44 @@ export default function MindMapEditor({
           proOptions={{ hideAttribution: true }}
         >
           {/* Top Bar */}
-          <div className="absolute top-4 left-4 right-4 z-10 bg-white p-3 rounded shadow-lg flex justify-between items-center">
-            <div className="flex gap-2 items-center">
-              <input
-                type="text"
-                value={nodeText}
-                onChange={(e) => setNodeText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addNode()}
-                placeholder="Enter node text"
-                className="px-3 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <button
-                onClick={addNode}
-                className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 transition"
-              >
-                Add Node
-              </button>
-              <button
-                onClick={handleSave}
-                className="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600 transition"
-              >
-                Save Mind Map
-              </button>
-            </div>
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[95vw] max-w-5xl z-10 bg-white/90 p-4 rounded-2xl shadow-xl flex items-center gap-3">
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="px-4 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg font-semibold w-56 mr-4"
+              placeholder="Board Name"
+              style={{ minWidth: 120 }}
+            />
+            <input
+              type="text"
+              value={nodeText}
+              onChange={(e) => setNodeText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addNode()}
+              placeholder="Enter node text"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-base flex-1 min-w-[180px]"
+            />
+            <button
+              onClick={addNode}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold transition shadow"
+            >
+              Add Node
+            </button>
+            <button
+              onClick={handleSave}
+              className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-lg font-semibold transition shadow"
+            >
+              Save Board
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="ml-auto border border-blue-500 text-blue-600 hover:bg-blue-50 px-5 py-2 rounded-lg font-semibold flex items-center gap-2 transition shadow"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+              Dashboard
+            </button>
           </div>
           <MiniMap pannable="true" zoomable />
           <Controls />
