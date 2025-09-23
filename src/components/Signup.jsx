@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/mind-tinker-logo.png";
 
-export default function Signup({ onSignup }) {
+export default function Signup() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -10,28 +11,26 @@ export default function Signup({ onSignup }) {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { signup } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setSuccess("");
-    try {
-      const res = await fetch("http://127.0.0.1:8000/api/register/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSuccess("Signup successful! You can now log in.");
-        if (onSignup) onSignup();
-      } else {
-        setError(data.error || JSON.stringify(data));
-      }
-    } catch (err) {
-      setError("Network error");
+    
+    const result = await signup(username, email, password);
+    
+    if (result.success) {
+      setSuccess("Signup successful! You can now log in.");
+      // Redirect to login after a short delay
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
+    } else {
+      setError(result.error);
     }
+    
     setLoading(false);
   };
 
@@ -70,7 +69,7 @@ export default function Signup({ onSignup }) {
           {success && <div className="text-green-600 mb-4 text-center">{success}</div>}
           <button
             type="submit"
-            className="bg-blue-600 hover:bg-blue-700 transition text-white px-6 py-3 rounded-lg w-full font-semibold text-lg shadow"
+            className="bg-blue-600 hover:bg-blue-700 transition text-white px-6 py-3 rounded-lg w-full font-semibold text-lg shadow disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={loading}
           >
             {loading ? "Signing up..." : "Sign Up"}

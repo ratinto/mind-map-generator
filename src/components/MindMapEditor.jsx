@@ -10,6 +10,7 @@ import ReactFlow, {
   ReactFlowProvider,
 } from "reactflow";
 import "reactflow/dist/style.css";
+import apiService from "../services/apiService";
 
 let id = 0;
 const getId = () => `node_${id++}`;
@@ -29,13 +30,19 @@ export default function MindMapEditor({
   // Load mind map if editing
   useEffect(() => {
     if (mindMapId) {
-      fetch(`http://127.0.0.1:8000/api/mindmaps/${mindMapId}/`)
-        .then((res) => res.json())
-        .then((data) => {
-          setNodes(data.nodes);
-          setEdges(data.edges);
-          setName(data.name || "Mind Tinker Board");
-        });
+      const fetchMindMap = async () => {
+        const result = await apiService.getMindMap(mindMapId);
+        if (result.success) {
+          setNodes(result.data.nodes);
+          setEdges(result.data.edges);
+          setName(result.data.name || "Mind Tinker Board");
+        } else {
+          console.error("Failed to load mind map:", result.error);
+          alert("Failed to load mind map: " + result.error);
+        }
+      };
+      
+      fetchMindMap();
     }
     // eslint-disable-next-line
   }, [mindMapId]);
@@ -60,22 +67,21 @@ export default function MindMapEditor({
   };
 
   // Save to backend
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!mindMapId) return;
-    fetch(`http://127.0.0.1:8000/api/mindmaps/${mindMapId}/`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        nodes,
-        edges,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (onSaved) onSaved(nodes, edges);
-        alert("Board saved!");
-      });
+    
+    const result = await apiService.updateMindMap(mindMapId, {
+      name,
+      nodes,
+      edges,
+    });
+    
+    if (result.success) {
+      if (onSaved) onSaved(nodes, edges);
+      alert("Board saved!");
+    } else {
+      alert("Failed to save board: " + result.error);
+    }
   };
 
   return (

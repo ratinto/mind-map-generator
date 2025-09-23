@@ -1,34 +1,34 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/mind-tinker-logo.png";
 
-export default function Login({ onLogin }) {
+export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+
+  // Get the intended destination from location state
+  const from = location.state?.from?.pathname || "/dashboard";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    try {
-      const res = await fetch("http://127.0.0.1:8000/api/login/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem("user_id", data.user_id);
-        if (onLogin) onLogin(data.user_id);
-      } else {
-        setError(data.error || "Login failed");
-      }
-    } catch (err) {
-      setError("Network error");
+    
+    const result = await login(username, password);
+    
+    if (result.success) {
+      // Redirect to intended destination or dashboard
+      navigate(from, { replace: true });
+    } else {
+      setError(result.error);
     }
+    
     setLoading(false);
   };
 
@@ -58,7 +58,7 @@ export default function Login({ onLogin }) {
           {error && <div className="text-red-500 mb-4 text-center">{error}</div>}
           <button
             type="submit"
-            className="bg-blue-600 hover:bg-blue-700 transition text-white px-6 py-3 rounded-lg w-full font-semibold text-lg shadow"
+            className="bg-blue-600 hover:bg-blue-700 transition text-white px-6 py-3 rounded-lg w-full font-semibold text-lg shadow disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={loading}
           >
             {loading ? "Logging in..." : "Login"}

@@ -14,7 +14,7 @@ export default function Dashboard({ onSelect, onCreate, mindmaps }) {
         </button>
       </div>
       <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-        {mindmaps.length === 0 ? (
+        {!mindmaps || mindmaps.length === 0 ? (
           <div className="col-span-full text-gray-400 text-center">No boards yet. Create one!</div>
         ) : (
           mindmaps.map((mm) => (

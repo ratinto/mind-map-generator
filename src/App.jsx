@@ -5,6 +5,9 @@ import Dashboard from "./Dashboard";
 import Login from "./components/Login";
 import Signup from "./components/Signup";
 import Navbar from "./components/Navbar";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import apiService from "./services/apiService";
 
 function DashboardPage({ mindmaps, onSelect, onCreate }) {
   return <Dashboard mindmaps={mindmaps} onSelect={onSelect} onCreate={onCreate} />;
@@ -17,20 +20,19 @@ function MindMapRoute({ mindmaps, onSelect, selectedId }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`http://127.0.0.1:8000/api/mindmaps/${id}/`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Not found");
-        return res.json();
-      })
-      .then((data) => {
-        setMindmap(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
+    const fetchMindMap = async () => {
+      setLoading(true);
+      const result = await apiService.getMindMap(id);
+      
+      if (result.success) {
+        setMindmap(result.data);
+      } else {
+        setError(result.error);
+      }
+      setLoading(false);
+    };
+
+    fetchMindMap();
   }, [id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -47,28 +49,24 @@ function MindMapRoute({ mindmaps, onSelect, selectedId }) {
   );
 }
 
-export default function App() {
-  const [userId, setUserId] = useState(() => localStorage.getItem("user_id"));
+function AppContent() {
+  const { isAuthenticated, logout } = useAuth();
   const [mindmaps, setMindmaps] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
 
   useEffect(() => {
-    if (userId) {
-      fetch("http://127.0.0.1:8000/api/mindmaps/")
-        .then((res) => res.json())
-        .then((data) => setMindmaps(data));
+    if (isAuthenticated) {
+      fetchMindMaps();
     }
-  }, [userId]);
+  }, [isAuthenticated]);
 
-  const handleLogin = (id) => {
-    setUserId(id);
-    window.location.href = "/dashboard";
-  };
-
-  const handleLogout = () => {
-    setUserId(null);
-    localStorage.removeItem("user_id");
-    window.location.href = "/login";
+  const fetchMindMaps = async () => {
+    const result = await apiService.getMindMaps();
+    if (result.success) {
+      setMindmaps(result.data);
+    } else {
+      console.error('Failed to fetch mind maps:', result.error);
+    }
   };
 
   const handleSelect = (id) => {
@@ -76,58 +74,67 @@ export default function App() {
     if (id) window.location.href = `/mindmap/${id}`;
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const name = prompt("Enter new mind map name:");
     if (!name) return;
-    fetch("http://127.0.0.1:8000/api/mindmaps/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, nodes: [], edges: [] }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setMindmaps((prev) => [...prev, data]);
-        setSelectedId(data.id);
-        window.location.href = `/mindmap/${data.id}`;
-      });
+    
+    const result = await apiService.createMindMap({ 
+      name, 
+      nodes: [], 
+      edges: [] 
+    });
+    
+    if (result.success) {
+      setMindmaps((prev) => [...prev, result.data]);
+      setSelectedId(result.data.id);
+      window.location.href = `/mindmap/${result.data.id}`;
+    } else {
+      alert('Failed to create mind map: ' + result.error);
+    }
   };
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login onLogin={handleLogin} />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/dashboard"
-          element={userId ? (
-            <>
-              <Navbar
-                onCreate={handleCreate}
-                onLogout={handleLogout}
-              />
-              <DashboardPage
-                mindmaps={mindmaps}
-                onSelect={handleSelect}
-                onCreate={handleCreate}
-              />
-            </>
-          ) : (
-            <Login onLogin={handleLogin} />
-          )}
-        />
-        <Route
-          path="/mindmap/:id"
-          element={userId ? (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Navbar
+              onCreate={handleCreate}
+              onLogout={logout}
+            />
+            <DashboardPage
+              mindmaps={mindmaps}
+              onSelect={handleSelect}
+              onCreate={handleCreate}
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/mindmap/:id"
+        element={
+          <ProtectedRoute>
             <MindMapRoute
               mindmaps={mindmaps}
               onSelect={handleSelect}
             />
-          ) : (
-            <Login onLogin={handleLogin} />
-          )}
-        />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Router>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
 }
