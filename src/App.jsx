@@ -4,6 +4,7 @@ import MindMapEditor from "./components/MindMapEditor";
 import Dashboard from "./Dashboard";
 import Login from "./components/Login";
 import Signup from "./components/Signup";
+import Home from "./components/Home";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -95,6 +96,7 @@ function AppContent() {
 
   return (
     <Routes>
+      <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route
@@ -124,7 +126,6 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }
