@@ -229,6 +229,12 @@ function MindMapEditorContent({
   const [name, setName] = useState("Mind Map");
   const [saveStatus, setSaveStatus] = useState("saved"); // saved, saving, unsaved
   const [lastSaved, setLastSaved] = useState(null);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [autoSaveDelay, setAutoSaveDelay] = useState(3); // seconds to wait after activity stops
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isUserActive, setIsUserActive] = useState(false);
+  const autoSaveTimerRef = useRef(null);
+  const activityTimerRef = useRef(null);
   const [selectedTool, setSelectedTool] = useState("select");
   const [showShapes, setShowShapes] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
@@ -250,12 +256,41 @@ function MindMapEditorContent({
   const [isCreatingShape, setIsCreatingShape] = useState(false);
   const [isMiddleMousePressed, setIsMiddleMousePressed] = useState(false);
   const [lastPanPosition, setLastPanPosition] = useState(null);
+  const [isErasing, setIsErasing] = useState(false);
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
   const svgRef = useRef(null);
   const reactFlowInstance = useReactFlow();
   const viewport = useViewport();
+
+  // Helper function to close all dialogs
+  const closeAllDialogs = () => {
+    setShowShapes(false);
+    setShowPenOptions(false);
+    setShowColorPicker(false);
+    setShowThicknessPicker(false);
+  };
+
+  // Helper function to set tool and manage its associated dialog
+  const selectTool = (toolName) => {
+    closeAllDialogs(); // Close all dialogs first
+    
+    // Handle special case for "shapes" - set to rectangle by default
+    if (toolName === 'shapes') {
+      setSelectedTool('shape-rectangle');
+      setShowShapes(true);
+    } else {
+      setSelectedTool(toolName);
+      
+      // Open the appropriate dialog for tools that have them
+      if (toolName === 'pen') {
+        setShowPenOptions(true);
+      } else if (toolName.includes('shape')) {
+        setShowShapes(true);
+      }
+    }
+  };
 
   // Global middle mouse button handler
   useEffect(() => {
@@ -296,8 +331,7 @@ function MindMapEditorContent({
       if (isTyping) {
         if (e.key === 'Escape') {
           setNodeText("");
-          setShowShapes(false);
-          setShowPenOptions(false);
+          closeAllDialogs();
           setSelectedTool('select');
           if (inputRef.current) inputRef.current.blur();
           if (activeElement) activeElement.blur();
@@ -317,9 +351,14 @@ function MindMapEditorContent({
         }
         // Clear canvas
         if (e.key === 'Delete') {
+          const nodeCount = nodes.length;
+          const pathCount = drawingPaths.length;
           setDrawingPaths([]);
           setNodes([]);
           setEdges([]);
+          if (nodeCount > 0 || pathCount > 0) {
+            showToast("Canvas cleared successfully!", "info");
+          }
         }
         // Zoom shortcuts
         if (e.key === '=' || e.key === '+') {
@@ -350,47 +389,32 @@ function MindMapEditorContent({
       // Non-modifier key shortcuts (only when not typing)
       if (e.key === 'Escape') {
         setNodeText("");
-        setShowShapes(false);
-        setShowPenOptions(false);
+        closeAllDialogs();
         setSelectedTool('select');
         if (inputRef.current) inputRef.current.blur();
       }
       
       // Tool shortcuts
       if (e.key === 'v') {
-        setSelectedTool('select');
-        setShowShapes(false);
-        setShowPenOptions(false);
+        selectTool('select');
       }
       if (e.key === 't') {
-        setSelectedTool('text');
-        setShowShapes(false);
-        setShowPenOptions(false);
+        selectTool('text');
       }
       if (e.key === 'r') {
-        setSelectedTool('shape-rectangle');
-        setShowShapes(false);
-        setShowPenOptions(false);
+        selectTool('shape-rectangle');
       }
       if (e.key === 'c') {
-        setSelectedTool('shape-circle');
-        setShowShapes(false);
-        setShowPenOptions(false);
+        selectTool('shape-circle');
       }
       if (e.key === 'm') {
-        setSelectedTool('mindmap');
-        setShowShapes(false);
-        setShowPenOptions(false);
+        selectTool('mindmap');
       }
       if (e.key === 'p') {
-        setSelectedTool('pen');
-        setShowShapes(false);
-        setShowPenOptions(false);
+        selectTool('pen');
       }
       if (e.key === 'e') {
-        setSelectedTool('eraser');
-        setShowShapes(false);
-        setShowPenOptions(false);
+        selectTool('eraser');
       }
     };
 
@@ -417,14 +441,18 @@ function MindMapEditorContent({
 
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [showShapes]);
+  }, [showShapes, showPenOptions, showColorPicker, showThicknessPicker]);
 
-  // Mark as unsaved when changes are made
+  // Mark as unsaved when changes are made and track activity
   useEffect(() => {
     if (nodes.length > 0 || edges.length > 0 || drawingPaths.length > 0 || name) {
       setSaveStatus("unsaved");
+      if (!hasUnsavedChanges) {
+        setHasUnsavedChanges(true);
+      }
+      trackUserActivity(); // Track that user is making changes
     }
-  }, [nodes, edges, name, drawingPaths]);
+  }, [nodes, edges, name, drawingPaths]); // Removed hasUnsavedChanges from deps to avoid infinite loop
 
   // Load mind map if editing
   useEffect(() => {
@@ -438,7 +466,7 @@ function MindMapEditorContent({
           setDrawingPaths(result.data.drawing_paths || []);
         } else {
           console.error("Failed to load mind map:", result.error);
-          alert("Failed to load mind map: " + result.error);
+          showToast("Failed to load mind map: " + result.error, "error");
         }
       };
       
@@ -447,6 +475,31 @@ function MindMapEditorContent({
     // eslint-disable-next-line
   }, [mindMapId]);
 
+  // Auto-save cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      if (activityTimerRef.current) {
+        clearTimeout(activityTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Clear timers when auto-save is disabled
+  useEffect(() => {
+    if (!autoSaveEnabled) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      if (activityTimerRef.current) {
+        clearTimeout(activityTimerRef.current);
+      }
+      setIsUserActive(false);
+    }
+  }, [autoSaveEnabled]);
+
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
@@ -454,6 +507,7 @@ function MindMapEditorContent({
 
   const addNode = () => {
     if (!nodeText.trim()) return;
+    trackUserActivity(); // Track node addition
     const newNode = {
       id: getId(),
       data: { label: nodeText },
@@ -464,6 +518,7 @@ function MindMapEditorContent({
     };
     setNodes((nds) => [...nds, newNode]);
     setNodeText("");
+    showToast(`Node "${nodeText}" added successfully!`, "success");
   };
 
   const addShape = (shapeType) => {
@@ -579,6 +634,8 @@ function MindMapEditorContent({
   const handleMouseDown = useCallback((event) => {
     if (selectedTool === 'select') return;
     
+    trackUserActivity(); // Track user interaction
+    
     // Get ReactFlow coordinates for actual shape creation
     const coords = getCanvasCoordinates(event);
     setStartPos(coords);
@@ -587,6 +644,9 @@ function MindMapEditorContent({
     if (selectedTool === 'pen') {
       setIsDrawing(true);
       setCurrentPath(`M ${coords.x} ${coords.y}`);
+    } else if (selectedTool === 'eraser') {
+      setIsErasing(true);
+      performErase(coords, event);
     } else if (selectedTool.startsWith('shape-')) {
       // Get screen coordinates for preview
       const rect = event.currentTarget.getBoundingClientRect();
@@ -607,8 +667,16 @@ function MindMapEditorContent({
     const coords = getCanvasCoordinates(event);
 
     if (selectedTool === 'pen' && isDrawing) {
+      trackUserActivity(); // Track continuous drawing
       setCurrentPath(prev => `${prev} L ${coords.x} ${coords.y}`);
+    } else if (selectedTool === 'eraser') {
+      setCurrentPos(coords); // Always update position for eraser cursor
+      if (isErasing) {
+        trackUserActivity(); // Track erasing
+        performErase(coords, event);
+      }
     } else if (selectedTool.startsWith('shape-') && isCreatingShape) {
+      trackUserActivity(); // Track shape creation
       // Update ReactFlow coordinates
       setCurrentPos(coords);
       
@@ -621,7 +689,7 @@ function MindMapEditorContent({
       
       setScreenCurrentPos(screenCoords);
     }
-  }, [selectedTool, isDrawing, isCreatingShape]);
+  }, [selectedTool, isDrawing, isErasing, isCreatingShape]);
 
   const handleMouseUp = useCallback((event) => {
     if (selectedTool === 'select') return;
@@ -640,6 +708,8 @@ function MindMapEditorContent({
         }]);
         setCurrentPath("");
       }
+    } else if (selectedTool === 'eraser' && isErasing) {
+      setIsErasing(false);
     } else if (selectedTool.startsWith('shape-') && isCreatingShape && startPos) {
       // Create shape with drag dimensions
       const width = Math.abs(coords.x - startPos.x);
@@ -667,7 +737,76 @@ function MindMapEditorContent({
       setScreenStartPos(null);
       setScreenCurrentPos(null);
     }
-  }, [selectedTool, isDrawing, isCreatingShape, startPos, currentPath, setNodes]);
+  }, [selectedTool, isDrawing, isErasing, isCreatingShape, startPos, currentPath, setNodes]);
+
+  // Eraser functionality
+  const performErase = useCallback((coords, event) => {
+    const screenPos = {
+      x: event.clientX,
+      y: event.clientY
+    };
+
+    const eraserRadius = globalThickness * 3; // Use thickness * 3 for eraser size
+
+    // Erase drawing paths that intersect with eraser position
+    setDrawingPaths(prevPaths => {
+      return prevPaths.filter(pathObj => {
+        return !isPathNearPoint(pathObj.path, coords, eraserRadius / viewport.zoom);
+      });
+    });
+
+    // Check if any nodes are under the eraser
+    const erasedNodeIds = [];
+    nodes.forEach(node => {
+      const nodeScreenPos = flowToScreenPosition({ x: node.position.x, y: node.position.y });
+      const distance = Math.sqrt(
+        Math.pow(screenPos.x - nodeScreenPos.x, 2) + 
+        Math.pow(screenPos.y - nodeScreenPos.y, 2)
+      );
+      
+      if (distance < eraserRadius) {
+        erasedNodeIds.push(node.id);
+      }
+    });
+
+    // Remove nodes that were erased
+    if (erasedNodeIds.length > 0) {
+      setNodes(prevNodes => prevNodes.filter(node => !erasedNodeIds.includes(node.id)));
+      setEdges(prevEdges => prevEdges.filter(edge => 
+        !erasedNodeIds.includes(edge.source) && !erasedNodeIds.includes(edge.target)
+      ));
+      
+      if (erasedNodeIds.length === 1) {
+        showToast("Node erased", "info");
+      } else {
+        showToast(`${erasedNodeIds.length} nodes erased`, "info");
+      }
+    }
+  }, [globalThickness, viewport.zoom, nodes, setNodes, setEdges]);
+
+  // Helper function to check if a path is near a point
+  const isPathNearPoint = (pathString, point, threshold) => {
+    try {
+      // Parse the SVG path string and check if any part is near the point
+      const commands = pathString.split(/(?=[MLZ])/);
+      
+      for (let command of commands) {
+        const coords = command.match(/-?\d+\.?\d*/g);
+        if (coords && coords.length >= 2) {
+          const x = parseFloat(coords[0]);
+          const y = parseFloat(coords[1]);
+          const distance = Math.sqrt(Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2));
+          
+          if (distance < threshold) {
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
 
   const createShapeNode = (shapeType, position, dimensions, startCoords = null, endCoords = null) => {
     const { width, height } = dimensions;
@@ -744,25 +883,124 @@ function MindMapEditorContent({
       showToast("Board saved successfully!", "success");
     } else {
       setSaveStatus("unsaved");
-      alert("Failed to save board: " + result.error);
+      showToast("Failed to save board: " + result.error, "error");
     }
   };
 
-  // Simple toast notification
+  // Auto-save functionality - triggered when user stops activity
+  const performAutoSave = async () => {
+    if (!hasUnsavedChanges || !autoSaveEnabled || !mindMapId) return;
+    
+    setSaveStatus("saving");
+    const data = {
+      name,
+      nodes,
+      edges,
+      drawing_paths: drawingPaths,
+    };
+
+    const result = await apiService.updateMindMap(mindMapId, data);
+    if (result.success) {
+      setSaveStatus("saved");
+      setLastSaved(new Date());
+      setHasUnsavedChanges(false);
+      setIsUserActive(false);
+      showToast("Auto-saved successfully", "success");
+    } else {
+      setSaveStatus("unsaved");
+      showToast("Auto-save failed: " + result.error, "warning");
+    }
+  };
+
+  // Track user activity and trigger auto-save after inactivity
+  const trackUserActivity = () => {
+    setIsUserActive(true);
+    
+    // Clear existing timers
+    if (activityTimerRef.current) {
+      clearTimeout(activityTimerRef.current);
+    }
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    
+    // Set timer to detect when user stops being active
+    activityTimerRef.current = setTimeout(() => {
+      setIsUserActive(false);
+      
+      // After user becomes inactive, wait for auto-save delay then save
+      if (autoSaveEnabled && hasUnsavedChanges) {
+        autoSaveTimerRef.current = setTimeout(() => {
+          performAutoSave();
+        }, autoSaveDelay * 1000);
+      }
+    }, 100); // 100ms debounce for activity detection
+  };
+
+
+
+  // Enhanced toast notification system
   const showToast = (message, type = "info") => {
     const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg text-white z-50 shadow-lg ${
-      type === 'success' ? 'bg-green-500' : 
-      type === 'error' ? 'bg-red-500' : 'bg-blue-500'
-    }`;
-    toast.textContent = message;
+    
+    // Icons for different toast types
+    const icons = {
+      success: '✓',
+      error: '✕',
+      warning: '⚠',
+      info: 'ℹ'
+    };
+    
+    // Colors for different toast types
+    const colors = {
+      success: 'bg-green-500 border-green-600',
+      error: 'bg-red-500 border-red-600', 
+      warning: 'bg-yellow-500 border-yellow-600',
+      info: 'bg-blue-500 border-blue-600'
+    };
+    
+    toast.className = `fixed top-4 right-4 px-4 py-3 rounded-lg text-white z-50 shadow-lg border-l-4 ${colors[type] || colors.info} transition-all duration-300 transform translate-x-0 opacity-100 max-w-sm`;
+    
+    toast.innerHTML = `
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-white bg-opacity-20 text-sm font-bold">
+          ${icons[type] || icons.info}
+        </div>
+        <div class="flex-1">
+          <p class="text-sm font-medium leading-tight">${message}</p>
+        </div>
+        <button class="flex-shrink-0 ml-2 text-white hover:text-gray-200 focus:outline-none" onclick="this.parentElement.parentElement.remove()">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+          </svg>
+        </button>
+      </div>
+    `;
+    
+    // Add entry animation
+    toast.style.transform = 'translateX(100%)';
+    toast.style.opacity = '0';
+    
     document.body.appendChild(toast);
     
+    // Trigger entry animation
+    setTimeout(() => {
+      toast.style.transform = 'translateX(0)';
+      toast.style.opacity = '1';
+    }, 10);
+    
+    // Auto remove after 5 seconds
     setTimeout(() => {
       if (document.body.contains(toast)) {
-        document.body.removeChild(toast);
+        toast.style.transform = 'translateX(100%)';
+        toast.style.opacity = '0';
+        setTimeout(() => {
+          if (document.body.contains(toast)) {
+            document.body.removeChild(toast);
+          }
+        }, 300);
       }
-    }, 3000);
+    }, 5000);
   };
 
   return (
@@ -783,7 +1021,10 @@ function MindMapEditorContent({
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={e => {
+                setName(e.target.value);
+                trackUserActivity(); // Track title editing
+              }}
               className="text-lg font-semibold bg-transparent border-none outline-none focus:bg-white focus:border focus:border-blue-500 focus:rounded px-2 py-1 min-w-[200px]"
               placeholder="Untitled"
             />
@@ -812,6 +1053,23 @@ function MindMapEditorContent({
               )}
             </div>
 
+            {/* Auto-save activity indicator */}
+            {autoSaveEnabled && hasUnsavedChanges && (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                {isUserActive ? (
+                  <>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span>Editing...</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Will auto-save in {autoSaveDelay}s when you stop</span>
+                  </>
+                )}
+              </div>
+            )}
+
             <button
               onClick={handleSave}
               disabled={saveStatus === "saving"}
@@ -819,6 +1077,21 @@ function MindMapEditorContent({
             >
               <FiSave className="w-4 h-4" />
               Save
+            </button>
+
+            {/* Auto-save toggle */}
+            <button
+              onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
+              className={`p-2 rounded-lg transition-colors ${
+                autoSaveEnabled 
+                  ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' 
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+              title={`Auto-save: ${autoSaveEnabled ? 'ON' : 'OFF'} (${autoSaveDelay}s after activity stops)`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </button>
 
             <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
@@ -832,7 +1105,7 @@ function MindMapEditorContent({
           <div className="bg-white border-r border-gray-200 w-16 flex flex-col items-center py-4 gap-1 z-10 relative">
             {/* Select Tool */}
             <button
-              onClick={() => {setSelectedTool("select"); setShowShapes(false);}}
+              onClick={() => selectTool("select")}
               className={`p-3 rounded-lg transition-colors ${
                 selectedTool === "select" 
                   ? "bg-blue-100 text-blue-600" 
@@ -844,12 +1117,10 @@ function MindMapEditorContent({
             </button>
 
             {/* Pen Tool */}
-            <div className="relative">
+            <div className="relative pen-options-panel">
               <button
                 onClick={() => {
-                  setSelectedTool("pen"); 
-                  setShowShapes(false);
-                  setShowPenOptions(!showPenOptions);
+                  selectTool("pen");
                   // Reset middle mouse state to ensure cursor shows correctly
                   setIsMiddleMousePressed(false);
                   setLastPanPosition(null);
@@ -868,7 +1139,7 @@ function MindMapEditorContent({
 
             {/* Eraser Tool */}
             <button
-              onClick={() => {setSelectedTool("eraser"); setShowShapes(false); setShowColorPicker(false);}}
+              onClick={() => selectTool("eraser")}
               className={`p-3 rounded-lg transition-colors ${
                 selectedTool === "eraser" 
                   ? "bg-blue-100 text-blue-600" 
@@ -1002,6 +1273,7 @@ function MindMapEditorContent({
                   <div className="mt-3 text-xs text-gray-500">
                     <p>• Pen: 1-20px</p>
                     <p>• Shapes: 1-8px (capped)</p>
+                    <p>• Eraser: 3x thickness</p>
                   </div>
                 </div>
               )}
@@ -1010,7 +1282,15 @@ function MindMapEditorContent({
             {/* Shapes Tool with Dropdown */}
             <div className="relative shapes-panel">
               <button
-                onClick={() => setShowShapes(!showShapes)}
+                onClick={() => {
+                  if (selectedTool.includes("shape")) {
+                    // If already on a shape tool, toggle the dialog
+                    setShowShapes(!showShapes);
+                  } else {
+                    // Otherwise, select shapes mode and open dialog
+                    selectTool("shapes");
+                  }
+                }}
                 className={`p-3 rounded-lg transition-colors relative ${
                   selectedTool.includes("shape") || showShapes
                     ? "bg-blue-100 text-blue-600" 
@@ -1029,7 +1309,7 @@ function MindMapEditorContent({
                     <h3 className="text-sm font-medium text-gray-700 mb-2">Basic Shapes</h3>
                     <div className="grid grid-cols-4 gap-2">
                       <button
-                        onClick={() => setSelectedTool("shape-rectangle")}
+                        onClick={() => selectTool("shape-rectangle")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-rectangle"
                             ? "border-blue-500 bg-blue-50"
@@ -1041,7 +1321,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => setSelectedTool("shape-rounded-rect")}
+                        onClick={() => selectTool("shape-rounded-rect")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-rounded-rect"
                             ? "border-blue-500 bg-blue-50"
@@ -1053,7 +1333,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => setSelectedTool("shape-circle")}
+                        onClick={() => selectTool("shape-circle")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-circle"
                             ? "border-blue-500 bg-blue-50"
@@ -1065,7 +1345,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => setSelectedTool("shape-star")}
+                        onClick={() => selectTool("shape-star")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-star"
                             ? "border-blue-500 bg-blue-50"
@@ -1077,7 +1357,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => setSelectedTool("shape-triangle")}
+                        onClick={() => selectTool("shape-triangle")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-triangle"
                             ? "border-blue-500 bg-blue-50"
@@ -1089,7 +1369,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => setSelectedTool("shape-speech-bubble")}
+                        onClick={() => selectTool("shape-speech-bubble")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-speech-bubble"
                             ? "border-blue-500 bg-blue-50"
@@ -1101,7 +1381,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => setSelectedTool("shape-arrow")}
+                        onClick={() => selectTool("shape-arrow")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-arrow"
                             ? "border-blue-500 bg-blue-50"
@@ -1135,7 +1415,7 @@ function MindMapEditorContent({
 
             {/* Text Tool */}
             <button
-              onClick={() => {setSelectedTool("text"); setShowShapes(false);}}
+              onClick={() => selectTool("text")}
               className={`p-3 rounded-lg transition-colors ${
                 selectedTool === "text" 
                   ? "bg-blue-100 text-blue-600" 
@@ -1148,7 +1428,7 @@ function MindMapEditorContent({
 
             {/* Mind Map Tool */}
             <button
-              onClick={() => {setSelectedTool("mindmap"); setShowShapes(false);}}
+              onClick={() => selectTool("mindmap")}
               className={`p-3 rounded-lg transition-colors ${
                 selectedTool === "mindmap" 
                   ? "bg-blue-100 text-blue-600" 
@@ -1163,7 +1443,7 @@ function MindMapEditorContent({
 
             {/* Image Tool */}
             <button
-              onClick={() => {setSelectedTool("image"); setShowShapes(false);}}
+              onClick={() => selectTool("image")}
               className={`p-3 rounded-lg transition-colors ${
                 selectedTool === "image" 
                   ? "bg-blue-100 text-blue-600" 
@@ -1176,7 +1456,7 @@ function MindMapEditorContent({
 
             {/* Comment Tool */}
             <button
-              onClick={() => {setSelectedTool("comment"); setShowShapes(false);}}
+              onClick={() => selectTool("comment")}
               className={`p-3 rounded-lg transition-colors ${
                 selectedTool === "comment" 
                   ? "bg-blue-100 text-blue-600" 
@@ -1189,7 +1469,7 @@ function MindMapEditorContent({
 
             {/* Connection Tool */}
             <button
-              onClick={() => {setSelectedTool("connection"); setShowShapes(false);}}
+              onClick={() => selectTool("connection")}
               className={`p-3 rounded-lg transition-colors ${
                 selectedTool === "connection" 
                   ? "bg-blue-100 text-blue-600" 
@@ -1206,6 +1486,7 @@ function MindMapEditorContent({
             className={`flex-1 relative ${selectedTool === 'pen' ? 'pen-tool-cursor' : ''}`}
             style={{
               cursor: selectedTool === 'pen' ? 'crosshair' : 
+                      selectedTool === 'eraser' ? 'crosshair' :
                       selectedTool.startsWith('shape-') ? 'crosshair' :
                       isMiddleMousePressed ? 'grabbing' : 'auto'
             }}
@@ -1219,7 +1500,7 @@ function MindMapEditorContent({
               }
               
               // Handle drawing events at the container level for left mouse button
-              if (e.button === 0 && (selectedTool === 'pen' || selectedTool.startsWith('shape-')) && !isMiddleMousePressed) {
+              if (e.button === 0 && (selectedTool === 'pen' || selectedTool === 'eraser' || selectedTool.startsWith('shape-')) && !isMiddleMousePressed) {
                 // Only prevent default for drawing tools and when not middle mouse panning
                 e.preventDefault();
                 handleMouseDown(e);
@@ -1244,7 +1525,11 @@ function MindMapEditorContent({
                 return;
               }
               
-              if (!isMiddleMousePressed && ((selectedTool === 'pen' && isDrawing) || (selectedTool.startsWith('shape-') && isCreatingShape))) {
+              if (!isMiddleMousePressed && (
+                (selectedTool === 'pen' && isDrawing) || 
+                (selectedTool === 'eraser') || 
+                (selectedTool.startsWith('shape-') && isCreatingShape)
+              )) {
                 e.preventDefault();
                 handleMouseMove(e);
               }
@@ -1257,7 +1542,7 @@ function MindMapEditorContent({
                 return;
               }
               
-              if (selectedTool === 'pen' || selectedTool.startsWith('shape-')) {
+              if (selectedTool === 'pen' || selectedTool === 'eraser' || selectedTool.startsWith('shape-')) {
                 handleMouseUp(e);
               }
             }}
@@ -1349,6 +1634,20 @@ function MindMapEditorContent({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       vectorEffect="non-scaling-stroke"
+                    />
+                  )}
+                  
+                  {/* Eraser cursor - show when eraser tool is selected */}
+                  {selectedTool === 'eraser' && currentPos && (
+                    <circle
+                      cx={currentPos.x}
+                      cy={currentPos.y}
+                      r={(globalThickness * 3) / viewport.zoom}
+                      fill="rgba(255, 0, 0, 0.1)"
+                      stroke="red"
+                      strokeWidth={1 / viewport.zoom}
+                      strokeDasharray={`${5 / viewport.zoom} ${3 / viewport.zoom}`}
+                      pointerEvents="none"
                     />
                   )}
                 </g>
@@ -1536,7 +1835,7 @@ function MindMapEditorContent({
                 {!isMiddleMousePressed && selectedTool === "mindmap" && "Enter text below, then click on canvas to add mind map node"}
                 {!isMiddleMousePressed && selectedTool === "text" && "Click on canvas to add text (T)"}
                 {!isMiddleMousePressed && selectedTool === "pen" && "Click and drag to draw freely (P) | Middle mouse to pan"}
-                {!isMiddleMousePressed && selectedTool === "eraser" && "Click on drawings to erase them (E)"}
+                {!isMiddleMousePressed && selectedTool === "eraser" && `Click and drag to erase drawings and nodes (${globalThickness * 3}px radius) (E)`}
                 {!isMiddleMousePressed && selectedTool.startsWith("shape-") && `Click and drag to draw ${selectedTool.replace('shape-', '').replace('-', ' ')} | Middle mouse to pan`}
                 {!isMiddleMousePressed && selectedTool === "image" && "Click on canvas to add image"}
                 {!isMiddleMousePressed && selectedTool === "comment" && "Click on canvas to add comment"}
@@ -1548,10 +1847,15 @@ function MindMapEditorContent({
             <div className="absolute top-6 right-6 bg-white border border-gray-200 rounded-lg shadow-sm p-2 z-10 flex gap-2">
               <button
                 onClick={() => {
+                  const nodeCount = nodes.length;
+                  const pathCount = drawingPaths.length;
                   setDrawingPaths([]);
                   setNodes([]);
                   setEdges([]);
                   setSaveStatus("unsaved");
+                  if (nodeCount > 0 || pathCount > 0) {
+                    showToast("Canvas cleared successfully!", "info");
+                  }
                 }}
                 className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 title="Clear Canvas (Ctrl+Delete)"
@@ -1560,8 +1864,12 @@ function MindMapEditorContent({
               </button>
               <button
                 onClick={() => {
+                  const pathCount = drawingPaths.length;
                   setDrawingPaths([]);
                   setSaveStatus("unsaved");
+                  if (pathCount > 0) {
+                    showToast("Drawings cleared successfully!", "info");
+                  }
                 }}
                 className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                 title="Clear Drawings Only"
