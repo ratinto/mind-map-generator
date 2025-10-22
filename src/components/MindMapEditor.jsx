@@ -9,6 +9,7 @@ import ReactFlow, {
   useEdgesState,
   ReactFlowProvider,
   useReactFlow,
+  useViewport,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { 
@@ -134,11 +135,27 @@ function MindMapEditorContent({
   const [drawingPaths, setDrawingPaths] = useState([]);
   const [startPos, setStartPos] = useState(null);
   const [isCreatingShape, setIsCreatingShape] = useState(false);
+  const [isMiddleMousePressed, setIsMiddleMousePressed] = useState(false);
+  const [lastPanPosition, setLastPanPosition] = useState(null);
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
   const svgRef = useRef(null);
   const reactFlowInstance = useReactFlow();
+  const viewport = useViewport();
+
+  // Global middle mouse button handler
+  useEffect(() => {
+    const handleGlobalMouseUp = (e) => {
+      if (e.button === 1) {
+        setIsMiddleMousePressed(false);
+        setLastPanPosition(null);
+      }
+    };
+
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -173,6 +190,31 @@ function MindMapEditorContent({
         setNodes([]);
         setEdges([]);
       }
+      // Zoom shortcuts
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          const currentViewport = reactFlowInstance.getViewport();
+          reactFlowInstance.setViewport({
+            x: currentViewport.x,
+            y: currentViewport.y,
+            zoom: currentViewport.zoom * 1.2
+          });
+        }
+        if (e.key === '-') {
+          e.preventDefault();
+          const currentViewport = reactFlowInstance.getViewport();
+          reactFlowInstance.setViewport({
+            x: currentViewport.x,
+            y: currentViewport.y,
+            zoom: currentViewport.zoom / 1.2
+          });
+        }
+        if (e.key === '0') {
+          e.preventDefault();
+          reactFlowInstance.fitView({ padding: 0.1 });
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyPress);
@@ -193,10 +235,10 @@ function MindMapEditorContent({
 
   // Mark as unsaved when changes are made
   useEffect(() => {
-    if (nodes.length > 0 || edges.length > 0) {
+    if (nodes.length > 0 || edges.length > 0 || drawingPaths.length > 0 || name) {
       setSaveStatus("unsaved");
     }
-  }, [nodes, edges, name]);
+  }, [nodes, edges, name, drawingPaths]);
 
   // Load mind map if editing
   useEffect(() => {
@@ -207,6 +249,7 @@ function MindMapEditorContent({
           setNodes(result.data.nodes);
           setEdges(result.data.edges);
           setName(result.data.name || "Mind Tinker Board");
+          setDrawingPaths(result.data.drawing_paths || []);
         } else {
           console.error("Failed to load mind map:", result.error);
           alert("Failed to load mind map: " + result.error);
@@ -322,10 +365,18 @@ function MindMapEditorContent({
   const getCanvasCoordinates = (event) => {
     const rect = event.currentTarget?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
-    return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    };
+    
+    // Get screen coordinates
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    
+    // Convert screen coordinates to ReactFlow coordinates
+    const reactFlowCoords = reactFlowInstance.screenToFlowPosition({
+      x: screenX,
+      y: screenY
+    });
+    
+    return reactFlowCoords;
   };
 
   const handleMouseDown = useCallback((event) => {
@@ -443,12 +494,13 @@ function MindMapEditorContent({
       name,
       nodes,
       edges,
+      drawing_paths: drawingPaths,
     });
     
     if (result.success) {
       setSaveStatus("saved");
       setLastSaved(new Date());
-      if (onSaved) onSaved(nodes, edges);
+      if (onSaved) onSaved(nodes, edges, drawingPaths);
       
       // Show success toast
       showToast("Board saved successfully!", "success");
@@ -776,10 +828,76 @@ function MindMapEditorContent({
           </div>
 
           {/* Main Canvas */}
-          <div className="flex-1 relative"
-            onMouseDown={selectedTool !== 'select' ? handleMouseDown : undefined}
-            onMouseMove={selectedTool !== 'select' ? handleMouseMove : undefined}
-            onMouseUp={selectedTool !== 'select' ? handleMouseUp : undefined}
+          <div 
+            className="flex-1 relative"
+            style={{
+              cursor: isMiddleMousePressed ? 'grabbing' : 
+                      (selectedTool === 'pen' || selectedTool.startsWith('shape-')) ? 'crosshair' : 'auto'
+            }}
+            onMouseDown={(e) => {
+              // Check for middle mouse button (wheel click)
+              if (e.button === 1) {
+                setIsMiddleMousePressed(true);
+                setLastPanPosition({ x: e.clientX, y: e.clientY });
+                e.preventDefault();
+                return;
+              }
+              
+              // Handle drawing events at the container level for left mouse button
+              if (e.button === 0 && (selectedTool === 'pen' || selectedTool.startsWith('shape-')) && !isMiddleMousePressed) {
+                // Only prevent default for drawing tools and when not middle mouse panning
+                e.preventDefault();
+                handleMouseDown(e);
+              }
+            }}
+            onMouseMove={(e) => {
+              // Handle middle mouse panning
+              if (isMiddleMousePressed && lastPanPosition) {
+                const deltaX = e.clientX - lastPanPosition.x;
+                const deltaY = e.clientY - lastPanPosition.y;
+                
+                // Update viewport position
+                const currentViewport = reactFlowInstance.getViewport();
+                reactFlowInstance.setViewport({
+                  x: currentViewport.x + deltaX,
+                  y: currentViewport.y + deltaY,
+                  zoom: currentViewport.zoom
+                });
+                
+                setLastPanPosition({ x: e.clientX, y: e.clientY });
+                e.preventDefault();
+                return;
+              }
+              
+              if (!isMiddleMousePressed && ((selectedTool === 'pen' && isDrawing) || (selectedTool.startsWith('shape-') && isCreatingShape))) {
+                e.preventDefault();
+                handleMouseMove(e);
+              }
+            }}
+            onMouseUp={(e) => {
+              // Handle middle mouse button release
+              if (e.button === 1) {
+                setIsMiddleMousePressed(false);
+                setLastPanPosition(null);
+                return;
+              }
+              
+              if (selectedTool === 'pen' || selectedTool.startsWith('shape-')) {
+                handleMouseUp(e);
+              }
+            }}
+            onContextMenu={(e) => {
+              // Prevent context menu when middle mouse button is used
+              if (isMiddleMousePressed) {
+                e.preventDefault();
+              }
+            }}
+            onMouseLeave={() => {
+              // Stop drawing when mouse leaves the canvas area
+              setIsDrawing(false);
+              setIsCreatingShape(false);
+              // Don't reset middle mouse state here - let global handler handle it
+            }}
           >
             <ReactFlow
               nodes={nodes}
@@ -794,14 +912,17 @@ function MindMapEditorContent({
               proOptions={{ hideAttribution: true }}
               className="bg-white"
               panOnDrag={selectedTool === 'select'}
-              zoomOnScroll={selectedTool === 'select'}
-              zoomOnPinch={selectedTool === 'select'}
+              zoomOnScroll={true}
+              zoomOnPinch={true}
               zoomOnDoubleClick={selectedTool === 'select'}
               nodesDraggable={selectedTool === 'select'}
               nodesConnectable={selectedTool === 'select'}
               elementsSelectable={selectedTool === 'select'}
+              minZoom={0.001}
+              maxZoom={1000}
             >
               <Background color="#f1f5f9" gap={20} />
+              
               <MiniMap 
                 nodeColor="rgb(59, 130, 246)" 
                 maskColor="rgba(255, 255, 255, 0.6)"
@@ -814,23 +935,13 @@ function MindMapEditorContent({
               />
             </ReactFlow>
 
-            {/* Drawing Overlay */}
-            {selectedTool !== 'select' && (
-              <div
-                className="absolute inset-0"
-                style={{ 
-                  zIndex: 10,
-                  cursor: selectedTool === 'pen' ? 'crosshair' : selectedTool.startsWith('shape-') ? 'crosshair' : 'default'
-                }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={() => {
-                  setIsDrawing(false);
-                  setIsCreatingShape(false);
-                }}
-              >
-                <svg className="w-full h-full pointer-events-none">
+            {/* Drawing Paths Overlay - Transformed to match ReactFlow viewport */}
+            <div 
+              className="absolute inset-0 pointer-events-none"
+              style={{ zIndex: 5 }}
+            >
+              <svg className="w-full h-full">
+                <g transform={`translate(${viewport.x},${viewport.y}) scale(${viewport.zoom})`}>
                   {/* Render saved drawing paths */}
                   {drawingPaths.map((path) => (
                     <path
@@ -841,6 +952,7 @@ function MindMapEditorContent({
                       fill={path.fill}
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
                     />
                   ))}
                   
@@ -853,11 +965,14 @@ function MindMapEditorContent({
                       fill="none"
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
                     />
                   )}
-                </svg>
-              </div>
-            )}
+                </g>
+              </svg>
+            </div>
+
+
             
             {/* Shape Preview Overlay */}
             {isCreatingShape && startPos && (
@@ -922,16 +1037,17 @@ function MindMapEditorContent({
           )}
 
             {/* Tool Instructions */}
-            {selectedTool !== "select" && (
+            {(selectedTool !== "select" || isMiddleMousePressed) && (
               <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm z-10 shadow-lg">
-                {selectedTool === "mindmap" && "Enter text below, then click on canvas to add mind map node"}
-                {selectedTool === "text" && "Click on canvas to add text (T)"}
-                {selectedTool === "pen" && "Click and drag to draw freely (P)"}
-                {selectedTool === "eraser" && "Click on drawings to erase them (E)"}
-                {selectedTool.startsWith("shape-") && `Click and drag to draw ${selectedTool.replace('shape-', '').replace('-', ' ')}`}
-                {selectedTool === "image" && "Click on canvas to add image"}
-                {selectedTool === "comment" && "Click on canvas to add comment"}
-                {selectedTool === "connection" && "Click on canvas to add connection"}
+                {isMiddleMousePressed && "Middle mouse pressed - Pan mode active"}
+                {!isMiddleMousePressed && selectedTool === "mindmap" && "Enter text below, then click on canvas to add mind map node"}
+                {!isMiddleMousePressed && selectedTool === "text" && "Click on canvas to add text (T)"}
+                {!isMiddleMousePressed && selectedTool === "pen" && "Click and drag to draw freely (P) | Middle mouse to pan"}
+                {!isMiddleMousePressed && selectedTool === "eraser" && "Click on drawings to erase them (E)"}
+                {!isMiddleMousePressed && selectedTool.startsWith("shape-") && `Click and drag to draw ${selectedTool.replace('shape-', '').replace('-', ' ')} | Middle mouse to pan`}
+                {!isMiddleMousePressed && selectedTool === "image" && "Click on canvas to add image"}
+                {!isMiddleMousePressed && selectedTool === "comment" && "Click on canvas to add comment"}
+                {!isMiddleMousePressed && selectedTool === "connection" && "Click on canvas to add connection"}
               </div>
             )}
 
@@ -942,6 +1058,7 @@ function MindMapEditorContent({
                   setDrawingPaths([]);
                   setNodes([]);
                   setEdges([]);
+                  setSaveStatus("unsaved");
                 }}
                 className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 title="Clear Canvas (Ctrl+Delete)"
@@ -949,7 +1066,10 @@ function MindMapEditorContent({
                 Clear All
               </button>
               <button
-                onClick={() => setDrawingPaths([])}
+                onClick={() => {
+                  setDrawingPaths([]);
+                  setSaveStatus("unsaved");
+                }}
                 className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                 title="Clear Drawings Only"
               >
@@ -988,15 +1108,50 @@ function MindMapEditorContent({
               </div>
             )}
 
+            {/* Zoom Level Indicator */}
+            <div className="absolute bottom-28 right-6 bg-white border border-gray-200 rounded-lg shadow-sm px-3 py-2 z-10">
+              <div className="text-xs text-gray-600 text-center">
+                {Math.round(viewport.zoom * 100)}%
+              </div>
+            </div>
+
             {/* Zoom Controls */}
             <div className="absolute bottom-6 right-6 bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col z-10">
-              <button className="p-2 hover:bg-gray-50 transition-colors border-b border-gray-200">
+              <button 
+                className="p-2 hover:bg-gray-50 transition-colors border-b border-gray-200"
+                onClick={() => {
+                  const currentViewport = reactFlowInstance.getViewport();
+                  reactFlowInstance.setViewport({
+                    x: currentViewport.x,
+                    y: currentViewport.y,
+                    zoom: currentViewport.zoom * 1.5
+                  });
+                }}
+                title="Zoom In"
+              >
                 <FiZoomIn className="w-4 h-4 text-gray-600" />
               </button>
-              <button className="p-2 hover:bg-gray-50 transition-colors border-b border-gray-200">
+              <button 
+                className="p-2 hover:bg-gray-50 transition-colors border-b border-gray-200"
+                onClick={() => {
+                  const currentViewport = reactFlowInstance.getViewport();
+                  reactFlowInstance.setViewport({
+                    x: currentViewport.x,
+                    y: currentViewport.y,
+                    zoom: currentViewport.zoom / 1.5
+                  });
+                }}
+                title="Zoom Out"
+              >
                 <FiZoomOut className="w-4 h-4 text-gray-600" />
               </button>
-              <button className="p-2 hover:bg-gray-50 transition-colors">
+              <button 
+                className="p-2 hover:bg-gray-50 transition-colors"
+                onClick={() => {
+                  reactFlowInstance.fitView({ padding: 0.1 });
+                }}
+                title="Fit to View"
+              >
                 <FiMaximize className="w-4 h-4 text-gray-600" />
               </button>
             </div>
