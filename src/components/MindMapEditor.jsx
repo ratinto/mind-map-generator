@@ -32,6 +32,8 @@ import {
   FiArrowRight,
   FiMinus,
   FiChevronDown,
+  FiSliders,
+  FiDroplet,
   FiGrid,
   FiMessageCircle,
   FiShare2
@@ -43,13 +45,13 @@ const getId = () => `node_${id++}`;
 
 // Custom Node Components
 const ShapeNode = ({ data }) => {
-  const { label, shapeType, style = {} } = data;
+  const { label, shapeType, style = {}, strokeWidth = 2, color = '#3b82f6' } = data;
   
   const baseStyle = {
     padding: '12px',
     borderRadius: '8px',
-    background: 'white',
-    border: '2px solid #3b82f6',
+    background: 'transparent',
+    border: `${strokeWidth}px solid ${color}`,
     fontSize: '14px',
     color: '#1f2937',
     minWidth: '80px',
@@ -63,20 +65,119 @@ const ShapeNode = ({ data }) => {
     case 'rounded-rect':
       return <div style={{ ...baseStyle, borderRadius: '12px' }}>{label}</div>;
     case 'circle':
-      return <div style={{ ...baseStyle, borderRadius: '50%', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{label}</div>;
-    case 'diamond':
-      return <div style={{ ...baseStyle, transform: 'rotate(45deg)', width: '60px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ transform: 'rotate(-45deg)' }}>{label}</span></div>;
+      return <div style={{ ...baseStyle, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{label}</div>;
     case 'triangle':
-      return <div style={{ ...baseStyle, clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', width: '80px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '20px' }}>{label}</div>;
+      const triangleWidth = parseInt(style?.width) || 80;
+      const triangleHeight = parseInt(style?.height) || 70;
+      const trianglePoints = `${triangleWidth/2},5 5,${triangleHeight-5} ${triangleWidth-5},${triangleHeight-5}`;
+      
+      return (
+        <div style={{ ...baseStyle, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+          <svg width={triangleWidth} height={triangleHeight} style={{ position: 'absolute', top: 0, left: 0 }}>
+            <polygon
+              points={trianglePoints}
+              fill="transparent"
+              stroke={color}
+              strokeWidth={strokeWidth}
+            />
+          </svg>
+          <span style={{ position: 'relative', zIndex: 1, fontSize: '12px', fontWeight: 'bold', marginTop: '10px' }}>{label}</span>
+        </div>
+      );
     case 'star':
-      return <div style={{ ...baseStyle, clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{label}</div>;
+      const starWidth = parseInt(style?.width) || 80;
+      const starHeight = parseInt(style?.height) || 80;
+      const starCenterX = starWidth / 2;
+      const starCenterY = starHeight / 2;
+      const starOuterRadius = Math.min(starWidth, starHeight) / 2 - 5; // Leave some margin for stroke
+      const starInnerRadius = starOuterRadius * 0.4;
+      
+      let starPoints = '';
+      for (let i = 0; i < 10; i++) {
+        const angle = (i * Math.PI) / 5 - Math.PI / 2;
+        const radius = i % 2 === 0 ? starOuterRadius : starInnerRadius;
+        const x = starCenterX + radius * Math.cos(angle);
+        const y = starCenterY + radius * Math.sin(angle);
+        starPoints += `${x},${y} `;
+      }
+      
+      return (
+        <div style={{ ...baseStyle, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+          <svg width={starWidth} height={starHeight} style={{ position: 'absolute', top: 0, left: 0 }}>
+            <polygon
+              points={starPoints.trim()}
+              fill="transparent"
+              stroke={color}
+              strokeWidth={strokeWidth}
+            />
+          </svg>
+          <span style={{ position: 'relative', zIndex: 1, fontSize: '12px', fontWeight: 'bold' }}>{label}</span>
+        </div>
+      );
     case 'speech-bubble':
       return <div style={{ ...baseStyle, borderRadius: '20px', position: 'relative' }}>
         {label}
-        <div style={{ position: 'absolute', bottom: '-10px', left: '20px', width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: '10px solid #3b82f6' }}></div>
+        <div style={{ position: 'absolute', bottom: '-10px', left: '20px', width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: `10px solid ${color}` }}></div>
       </div>;
     case 'arrow':
-      return <div style={{ ...baseStyle, clipPath: 'polygon(0% 20%, 60% 20%, 60% 0%, 100% 50%, 60% 100%, 60% 80%, 0% 80%)', width: '100px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '10px' }}>{label}</div>;
+      const arrowWidth = parseInt(style?.width) || 100;
+      const arrowHeight = parseInt(style?.height) || 50;
+      
+      // Use directional coordinates if available
+      if (data.startCoords && data.endCoords) {
+        // Calculate relative coordinates within the bounding box
+        const minX = Math.min(data.startCoords.x, data.endCoords.x);
+        const minY = Math.min(data.startCoords.y, data.endCoords.y);
+        
+        const relativeStartX = data.startCoords.x - minX;
+        const relativeStartY = data.startCoords.y - minY;
+        const relativeEndX = data.endCoords.x - minX;
+        const relativeEndY = data.endCoords.y - minY;
+        
+        const dx = relativeEndX - relativeStartX;
+        const dy = relativeEndY - relativeStartY;
+        const angle = Math.atan2(dy, dx);
+        const arrowheadSize = 12;
+        
+        return (
+          <div style={{ ...baseStyle, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            <svg width={arrowWidth} height={arrowHeight} style={{ position: 'absolute', top: 0, left: 0 }} viewBox={`0 0 ${arrowWidth} ${arrowHeight}`}>
+              <line
+                x1={relativeStartX}
+                y1={relativeStartY}
+                x2={relativeEndX}
+                y2={relativeEndY}
+                stroke={color}
+                strokeWidth={strokeWidth}
+              />
+              <polygon
+                points={`${relativeEndX},${relativeEndY} ${relativeEndX - arrowheadSize * Math.cos(angle - Math.PI / 6)},${relativeEndY - arrowheadSize * Math.sin(angle - Math.PI / 6)} ${relativeEndX - arrowheadSize * Math.cos(angle + Math.PI / 6)},${relativeEndY - arrowheadSize * Math.sin(angle + Math.PI / 6)}`}
+                fill={color}
+                stroke={color}
+                strokeWidth={strokeWidth}
+              />
+            </svg>
+            <span style={{ position: 'relative', zIndex: 1, fontSize: '12px', fontWeight: 'bold', color: '#1f2937', backgroundColor: 'rgba(255, 255, 255, 0.8)', padding: '2px 4px', borderRadius: '2px' }}>{label}</span>
+          </div>
+        );
+      }
+      
+      // Fallback to polygon arrow if no directional data
+      const arrowPoints = `5,${arrowHeight*0.2} ${arrowWidth*0.6},${arrowHeight*0.2} ${arrowWidth*0.6},5 ${arrowWidth-5},${arrowHeight/2} ${arrowWidth*0.6},${arrowHeight-5} ${arrowWidth*0.6},${arrowHeight*0.8} 5,${arrowHeight*0.8}`;
+      
+      return (
+        <div style={{ ...baseStyle, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+          <svg width={arrowWidth} height={arrowHeight} style={{ position: 'absolute', top: 0, left: 0 }}>
+            <polygon
+              points={arrowPoints}
+              fill="transparent"
+              stroke={color}
+              strokeWidth={strokeWidth}
+            />
+          </svg>
+          <span style={{ position: 'relative', zIndex: 1, fontSize: '12px', fontWeight: 'bold', marginLeft: '5px' }}>{label}</span>
+        </div>
+      );
     default:
       return <div style={baseStyle}>{label}</div>;
   }
@@ -130,10 +231,22 @@ function MindMapEditorContent({
   const [lastSaved, setLastSaved] = useState(null);
   const [selectedTool, setSelectedTool] = useState("select");
   const [showShapes, setShowShapes] = useState(false);
+  const [showPenOptions, setShowPenOptions] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showThicknessPicker, setShowThicknessPicker] = useState(false);
+  const [penColor, setPenColor] = useState('#3b82f6');
+  const [penThickness, setPenThickness] = useState(2);
+  const [shapeStrokeThickness, setShapeStrokeThickness] = useState(2);
+  const [shapeColor, setShapeColor] = useState('#3b82f6');
+  const [globalColor, setGlobalColor] = useState('#3b82f6'); // Shared color for all tools
+  const [globalThickness, setGlobalThickness] = useState(2); // Shared thickness for all tools
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState("");
   const [drawingPaths, setDrawingPaths] = useState([]);
   const [startPos, setStartPos] = useState(null);
+  const [currentPos, setCurrentPos] = useState(null);
+  const [screenStartPos, setScreenStartPos] = useState(null);
+  const [screenCurrentPos, setScreenCurrentPos] = useState(null);
   const [isCreatingShape, setIsCreatingShape] = useState(false);
   const [isMiddleMousePressed, setIsMiddleMousePressed] = useState(false);
   const [lastPanPosition, setLastPanPosition] = useState(null);
@@ -153,13 +266,46 @@ function MindMapEditorContent({
       }
     };
 
+    // Also reset on any mouse up to be safe
+    const handleAnyMouseUp = () => {
+      setIsMiddleMousePressed(false);
+      setLastPanPosition(null);
+    };
+
     document.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+    document.addEventListener('mouseup', handleAnyMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('mouseup', handleAnyMouseUp);
+    };
   }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e) => {
+      // Check if user is typing in an input field, textarea, or contenteditable element
+      const activeElement = document.activeElement;
+      const isTyping = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.contentEditable === 'true' ||
+        activeElement.isContentEditable
+      );
+
+      // If user is typing, only allow escape key to work
+      if (isTyping) {
+        if (e.key === 'Escape') {
+          setNodeText("");
+          setShowShapes(false);
+          setShowPenOptions(false);
+          setSelectedTool('select');
+          if (inputRef.current) inputRef.current.blur();
+          if (activeElement) activeElement.blur();
+        }
+        return; // Don't process other shortcuts while typing
+      }
+
+      // Handle Ctrl/Cmd shortcuts
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 's') {
           e.preventDefault();
@@ -169,36 +315,20 @@ function MindMapEditorContent({
           e.preventDefault();
           addNode();
         }
-      }
-      if (e.key === 'Escape') {
-        setNodeText("");
-        setShowShapes(false);
-        setSelectedTool('select'); // Reset to select tool on escape
-        if (inputRef.current) inputRef.current.blur();
-      }
-      // Keyboard shortcuts for tools
-      if (e.key === 'v') setSelectedTool('select');
-      if (e.key === 't') setSelectedTool('text');
-      if (e.key === 'r') setSelectedTool('shape-rectangle');
-      if (e.key === 'c') setSelectedTool('shape-circle');
-      if (e.key === 'm') setSelectedTool('mindmap');
-      if (e.key === 'p') setSelectedTool('pen');
-      if (e.key === 'e') setSelectedTool('eraser');
-      // Clear canvas
-      if (e.ctrlKey && e.key === 'Delete') {
-        setDrawingPaths([]);
-        setNodes([]);
-        setEdges([]);
-      }
-      // Zoom shortcuts
-      if (e.ctrlKey || e.metaKey) {
+        // Clear canvas
+        if (e.key === 'Delete') {
+          setDrawingPaths([]);
+          setNodes([]);
+          setEdges([]);
+        }
+        // Zoom shortcuts
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
           const currentViewport = reactFlowInstance.getViewport();
           reactFlowInstance.setViewport({
             x: currentViewport.x,
             y: currentViewport.y,
-            zoom: currentViewport.zoom * 1.2
+            zoom: Math.min(currentViewport.zoom * 1.2, 1000)
           });
         }
         if (e.key === '-') {
@@ -207,13 +337,60 @@ function MindMapEditorContent({
           reactFlowInstance.setViewport({
             x: currentViewport.x,
             y: currentViewport.y,
-            zoom: currentViewport.zoom / 1.2
+            zoom: Math.max(currentViewport.zoom * 0.8, 0.001)
           });
         }
         if (e.key === '0') {
           e.preventDefault();
           reactFlowInstance.fitView({ padding: 0.1 });
         }
+        return; // Don't process tool shortcuts when Ctrl/Cmd is pressed
+      }
+
+      // Non-modifier key shortcuts (only when not typing)
+      if (e.key === 'Escape') {
+        setNodeText("");
+        setShowShapes(false);
+        setShowPenOptions(false);
+        setSelectedTool('select');
+        if (inputRef.current) inputRef.current.blur();
+      }
+      
+      // Tool shortcuts
+      if (e.key === 'v') {
+        setSelectedTool('select');
+        setShowShapes(false);
+        setShowPenOptions(false);
+      }
+      if (e.key === 't') {
+        setSelectedTool('text');
+        setShowShapes(false);
+        setShowPenOptions(false);
+      }
+      if (e.key === 'r') {
+        setSelectedTool('shape-rectangle');
+        setShowShapes(false);
+        setShowPenOptions(false);
+      }
+      if (e.key === 'c') {
+        setSelectedTool('shape-circle');
+        setShowShapes(false);
+        setShowPenOptions(false);
+      }
+      if (e.key === 'm') {
+        setSelectedTool('mindmap');
+        setShowShapes(false);
+        setShowPenOptions(false);
+      }
+      if (e.key === 'p') {
+        setSelectedTool('pen');
+        setShowShapes(false);
+        setShowPenOptions(false);
+      }
+      if (e.key === 'e') {
+        setSelectedTool('eraser');
+        setShowShapes(false);
+        setShowPenOptions(false);
       }
     };
 
@@ -221,11 +398,20 @@ function MindMapEditorContent({
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [nodeText]);
 
-  // Click outside to close shapes panel
+  // Click outside to close panels
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (showShapes && !e.target.closest('.shapes-panel')) {
         setShowShapes(false);
+      }
+      if (showPenOptions && !e.target.closest('.pen-options-panel')) {
+        setShowPenOptions(false);
+      }
+      if (showColorPicker && !e.target.closest('.color-picker-panel')) {
+        setShowColorPicker(false);
+      }
+      if (showThicknessPicker && !e.target.closest('.thickness-picker-panel')) {
+        setShowThicknessPicker(false);
       }
     };
 
@@ -363,32 +549,54 @@ function MindMapEditorContent({
 
   // Drawing functions for whiteboard
   const getCanvasCoordinates = (event) => {
-    const rect = event.currentTarget?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    
-    // Get screen coordinates
-    const screenX = event.clientX - rect.left;
-    const screenY = event.clientY - rect.top;
-    
-    // Convert screen coordinates to ReactFlow coordinates
-    const reactFlowCoords = reactFlowInstance.screenToFlowPosition({
-      x: screenX,
-      y: screenY
-    });
-    
-    return reactFlowCoords;
+    // Convert screen coordinates directly to ReactFlow coordinates
+    // ReactFlow's screenToFlowPosition handles the viewport transformation internally
+    try {
+      const reactFlowCoords = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY
+      });
+      return reactFlowCoords;
+    } catch (error) {
+      // Fallback if screenToFlowPosition fails
+      console.warn('screenToFlowPosition failed, using fallback', error);
+      return { x: event.clientX, y: event.clientY };
+    }
+  };
+
+  // Convert ReactFlow coordinates to screen coordinates for preview
+  const flowToScreenCoordinates = (flowCoords) => {
+    try {
+      const screenCoords = reactFlowInstance.flowToScreenPosition(flowCoords);
+      return screenCoords;
+    } catch (error) {
+      // Fallback if flowToScreenPosition fails
+      console.warn('flowToScreenPosition failed, using fallback', error);
+      return flowCoords;
+    }
   };
 
   const handleMouseDown = useCallback((event) => {
     if (selectedTool === 'select') return;
     
+    // Get ReactFlow coordinates for actual shape creation
     const coords = getCanvasCoordinates(event);
     setStartPos(coords);
+    setCurrentPos(coords);
 
     if (selectedTool === 'pen') {
       setIsDrawing(true);
       setCurrentPath(`M ${coords.x} ${coords.y}`);
     } else if (selectedTool.startsWith('shape-')) {
+      // Get screen coordinates for preview
+      const rect = event.currentTarget.getBoundingClientRect();
+      const screenCoords = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+      
+      setScreenStartPos(screenCoords);
+      setScreenCurrentPos(screenCoords);
       setIsCreatingShape(true);
     }
   }, [selectedTool]);
@@ -400,8 +608,20 @@ function MindMapEditorContent({
 
     if (selectedTool === 'pen' && isDrawing) {
       setCurrentPath(prev => `${prev} L ${coords.x} ${coords.y}`);
+    } else if (selectedTool.startsWith('shape-') && isCreatingShape) {
+      // Update ReactFlow coordinates
+      setCurrentPos(coords);
+      
+      // Update screen coordinates for preview
+      const rect = event.currentTarget.getBoundingClientRect();
+      const screenCoords = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+      
+      setScreenCurrentPos(screenCoords);
     }
-  }, [selectedTool, isDrawing]);
+  }, [selectedTool, isDrawing, isCreatingShape]);
 
   const handleMouseUp = useCallback((event) => {
     if (selectedTool === 'select') return;
@@ -414,8 +634,8 @@ function MindMapEditorContent({
         setDrawingPaths(prev => [...prev, {
           id: getId(),
           path: currentPath,
-          stroke: '#3b82f6',
-          strokeWidth: 2,
+          stroke: globalColor,
+          strokeWidth: globalThickness,
           fill: 'none'
         }]);
         setCurrentPath("");
@@ -431,16 +651,25 @@ function MindMapEditorContent({
           y: Math.min(startPos.y, coords.y)
         };
 
-        let newNode = createShapeNode(selectedTool, position, { width, height });
+        let newNode;
+        if (selectedTool === 'shape-arrow') {
+          // For arrows, pass the actual start and end coordinates for direction
+          newNode = createShapeNode(selectedTool, position, { width, height }, startPos, coords);
+        } else {
+          newNode = createShapeNode(selectedTool, position, { width, height });
+        }
         setNodes((nds) => [...nds, newNode]);
       }
       
       setIsCreatingShape(false);
       setStartPos(null);
+      setCurrentPos(null);
+      setScreenStartPos(null);
+      setScreenCurrentPos(null);
     }
   }, [selectedTool, isDrawing, isCreatingShape, startPos, currentPath, setNodes]);
 
-  const createShapeNode = (shapeType, position, dimensions) => {
+  const createShapeNode = (shapeType, position, dimensions, startCoords = null, endCoords = null) => {
     const { width, height } = dimensions;
     
     let nodeData = {};
@@ -450,29 +679,38 @@ function MindMapEditorContent({
         nodeData = { 
           label: 'Rectangle', 
           shapeType: 'rectangle',
-          style: { width: `${width}px`, height: `${height}px` }
+          style: { width: `${width}px`, height: `${height}px` },
+          strokeWidth: Math.min(globalThickness, 8),
+          color: globalColor
         };
         break;
       case 'shape-circle':
-        const size = Math.min(width, height);
         nodeData = { 
           label: 'Circle', 
           shapeType: 'circle',
-          style: { width: `${size}px`, height: `${size}px` }
+          style: { width: `${width}px`, height: `${height}px` },
+          strokeWidth: Math.min(globalThickness, 8),
+          color: globalColor
         };
         break;
-      case 'shape-diamond':
+      case 'shape-arrow':
         nodeData = { 
-          label: '♦', 
-          shapeType: 'diamond',
-          style: { width: `${width}px`, height: `${height}px` }
+          label: 'Arrow', 
+          shapeType: 'arrow',
+          style: { width: `${width}px`, height: `${height}px` },
+          strokeWidth: Math.min(globalThickness, 8),
+          color: globalColor,
+          startCoords,
+          endCoords
         };
         break;
       default:
         nodeData = { 
           label: shapeType.replace('shape-', '').replace('-', ' '), 
           shapeType: shapeType.replace('shape-', ''),
-          style: { width: `${width}px`, height: `${height}px` }
+          style: { width: `${width}px`, height: `${height}px` },
+          strokeWidth: Math.min(globalThickness, 8),
+          color: globalColor
         };
     }
 
@@ -606,21 +844,31 @@ function MindMapEditorContent({
             </button>
 
             {/* Pen Tool */}
-            <button
-              onClick={() => {setSelectedTool("pen"); setShowShapes(false);}}
-              className={`p-3 rounded-lg transition-colors ${
-                selectedTool === "pen" 
-                  ? "bg-blue-100 text-blue-600" 
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-              title="Pen - Draw freely (P)"
-            >
-              <FiPenTool className="w-5 h-5" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setSelectedTool("pen"); 
+                  setShowShapes(false);
+                  setShowPenOptions(!showPenOptions);
+                  // Reset middle mouse state to ensure cursor shows correctly
+                  setIsMiddleMousePressed(false);
+                  setLastPanPosition(null);
+                }}
+                className={`p-3 rounded-lg transition-colors flex items-center gap-1 ${
+                  selectedTool === "pen" 
+                    ? "bg-blue-100 text-blue-600" 
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+                title="Pen - Draw freely (P)"
+              >
+                <FiPenTool className="w-5 h-5" />
+                <FiChevronDown className="w-3 h-3" />
+              </button>
+            </div>
 
             {/* Eraser Tool */}
             <button
-              onClick={() => {setSelectedTool("eraser"); setShowShapes(false);}}
+              onClick={() => {setSelectedTool("eraser"); setShowShapes(false); setShowColorPicker(false);}}
               className={`p-3 rounded-lg transition-colors ${
                 selectedTool === "eraser" 
                   ? "bg-blue-100 text-blue-600" 
@@ -630,6 +878,134 @@ function MindMapEditorContent({
             >
               <FiMinus className="w-5 h-5" />
             </button>
+
+            {/* Color Picker Tool */}
+            <div className="relative color-picker-panel">
+              <button
+                onClick={() => setShowColorPicker(!showColorPicker)}
+                className={`p-3 rounded-lg transition-colors relative ${
+                  showColorPicker
+                    ? "bg-blue-100 text-blue-600" 
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+                title="Color Picker"
+              >
+                <div className="flex items-center gap-1">
+                  <div 
+                    className="w-5 h-5 rounded-full border-2 border-gray-400"
+                    style={{ backgroundColor: globalColor }}
+                  />
+                </div>
+              </button>
+
+              {/* Color Picker Dropdown */}
+              {showColorPicker && (
+                <div className="absolute left-16 top-0 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-20 w-64">
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">Colors</h3>
+                  <div className="grid grid-cols-6 gap-2 mb-3">
+                    {['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'].map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => {
+                          setGlobalColor(color);
+                          setPenColor(color);
+                          setShapeColor(color);
+                        }}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${
+                          globalColor === color
+                            ? "border-gray-400 scale-110"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-6 gap-2">
+                    {['#1f2937', '#6b7280', '#9ca3af', '#d1d5db', '#f3f4f6', '#ffffff'].map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => {
+                          setGlobalColor(color);
+                          setPenColor(color);
+                          setShapeColor(color);
+                        }}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${
+                          globalColor === color
+                            ? "border-gray-400 scale-110"
+                            : "border-gray-200 hover:border-gray-300"
+                        } ${color === '#ffffff' ? 'border-gray-300' : ''}`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Thickness Picker Tool */}
+            <div className="relative thickness-picker-panel">
+              <button
+                onClick={() => setShowThicknessPicker(!showThicknessPicker)}
+                className={`p-3 rounded-lg transition-colors relative ${
+                  showThicknessPicker
+                    ? "bg-blue-100 text-blue-600" 
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+                title="Thickness Picker"
+              >
+                <div className="flex items-center gap-1">
+                  <FiSliders className="w-4 h-4" />
+                  <div 
+                    className="rounded-full bg-gray-700"
+                    style={{ 
+                      width: `${Math.max(globalThickness / 2, 2)}px`, 
+                      height: `${Math.max(globalThickness / 2, 2)}px` 
+                    }}
+                  />
+                </div>
+              </button>
+
+              {/* Thickness Picker Dropdown */}
+              {showThicknessPicker && (
+                <div className="absolute left-16 top-0 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-20 w-64">
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">Thickness</h3>
+                  <div className="space-y-2">
+                    <input
+                      type="range"
+                      min="1"
+                      max="20"
+                      value={globalThickness}
+                      onChange={(e) => {
+                        const thickness = Number(e.target.value);
+                        setGlobalThickness(thickness);
+                        setPenThickness(thickness);
+                        setShapeStrokeThickness(Math.min(thickness, 8)); // Cap shapes at 8px
+                      }}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-500">1px</span>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="rounded-full"
+                          style={{ 
+                            backgroundColor: globalColor,
+                            width: `${Math.max(globalThickness, 2)}px`, 
+                            height: `${Math.max(globalThickness, 2)}px` 
+                          }}
+                        />
+                        <span className="text-xs text-gray-600">{globalThickness}px</span>
+                      </div>
+                      <span className="text-xs text-gray-500">20px</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs text-gray-500">
+                    <p>• Pen: 1-20px</p>
+                    <p>• Shapes: 1-8px (capped)</p>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Shapes Tool with Dropdown */}
             <div className="relative shapes-panel">
@@ -653,7 +1029,7 @@ function MindMapEditorContent({
                     <h3 className="text-sm font-medium text-gray-700 mb-2">Basic Shapes</h3>
                     <div className="grid grid-cols-4 gap-2">
                       <button
-                        onClick={() => {setSelectedTool("shape-rectangle"); setShowShapes(false);}}
+                        onClick={() => setSelectedTool("shape-rectangle")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-rectangle"
                             ? "border-blue-500 bg-blue-50"
@@ -665,7 +1041,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => {setSelectedTool("shape-rounded-rect"); setShowShapes(false);}}
+                        onClick={() => setSelectedTool("shape-rounded-rect")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-rounded-rect"
                             ? "border-blue-500 bg-blue-50"
@@ -677,7 +1053,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => {setSelectedTool("shape-circle"); setShowShapes(false);}}
+                        onClick={() => setSelectedTool("shape-circle")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-circle"
                             ? "border-blue-500 bg-blue-50"
@@ -689,19 +1065,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => {setSelectedTool("shape-diamond"); setShowShapes(false);}}
-                        className={`p-3 rounded-lg border-2 transition-all ${
-                          selectedTool === "shape-diamond"
-                            ? "border-blue-500 bg-blue-50"
-                            : "border-gray-200 hover:border-gray-300"
-                        }`}
-                        title="Diamond"
-                      >
-                        <div className="w-4 h-4 border-2 border-gray-700 rotate-45"></div>
-                      </button>
-                      
-                      <button
-                        onClick={() => {setSelectedTool("shape-star"); setShowShapes(false);}}
+                        onClick={() => setSelectedTool("shape-star")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-star"
                             ? "border-blue-500 bg-blue-50"
@@ -713,7 +1077,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => {setSelectedTool("shape-triangle"); setShowShapes(false);}}
+                        onClick={() => setSelectedTool("shape-triangle")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-triangle"
                             ? "border-blue-500 bg-blue-50"
@@ -725,7 +1089,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => {setSelectedTool("shape-speech-bubble"); setShowShapes(false);}}
+                        onClick={() => setSelectedTool("shape-speech-bubble")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-speech-bubble"
                             ? "border-blue-500 bg-blue-50"
@@ -737,7 +1101,7 @@ function MindMapEditorContent({
                       </button>
                       
                       <button
-                        onClick={() => {setSelectedTool("shape-arrow"); setShowShapes(false);}}
+                        onClick={() => setSelectedTool("shape-arrow")}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           selectedTool === "shape-arrow"
                             ? "border-blue-500 bg-blue-50"
@@ -754,6 +1118,16 @@ function MindMapEditorContent({
                     <button className="w-full py-2 px-3 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
                       More shapes
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Pen Options Dialog */}
+              {showPenOptions && (
+                <div className="pen-options-panel absolute top-0 left-full ml-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4">
+                  <div className="text-center">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Pen Tool</h3>
+                    <p className="text-xs text-gray-500">Use the color and thickness tools to customize your pen.</p>
                   </div>
                 </div>
               )}
@@ -829,10 +1203,11 @@ function MindMapEditorContent({
 
           {/* Main Canvas */}
           <div 
-            className="flex-1 relative"
+            className={`flex-1 relative ${selectedTool === 'pen' ? 'pen-tool-cursor' : ''}`}
             style={{
-              cursor: isMiddleMousePressed ? 'grabbing' : 
-                      (selectedTool === 'pen' || selectedTool.startsWith('shape-')) ? 'crosshair' : 'auto'
+              cursor: selectedTool === 'pen' ? 'crosshair' : 
+                      selectedTool.startsWith('shape-') ? 'crosshair' :
+                      isMiddleMousePressed ? 'grabbing' : 'auto'
             }}
             onMouseDown={(e) => {
               // Check for middle mouse button (wheel click)
@@ -896,6 +1271,9 @@ function MindMapEditorContent({
               // Stop drawing when mouse leaves the canvas area
               setIsDrawing(false);
               setIsCreatingShape(false);
+              setCurrentPos(null);
+              setScreenStartPos(null);
+              setScreenCurrentPos(null);
               // Don't reset middle mouse state here - let global handler handle it
             }}
           >
@@ -910,7 +1288,12 @@ function MindMapEditorContent({
               nodeTypes={nodeTypes}
               fitView
               proOptions={{ hideAttribution: true }}
-              className="bg-white"
+              className={`bg-white ${selectedTool === 'pen' ? 'pen-tool-cursor' : ''}`}
+              style={{ 
+                cursor: selectedTool === 'pen' ? 'crosshair' : 
+                        selectedTool.startsWith('shape-') ? 'crosshair' :
+                        isMiddleMousePressed ? 'grabbing' : 'default'
+              }}
               panOnDrag={selectedTool === 'select'}
               zoomOnScroll={true}
               zoomOnPinch={true}
@@ -960,8 +1343,8 @@ function MindMapEditorContent({
                   {currentPath && (
                     <path
                       d={currentPath}
-                      stroke="#3b82f6"
-                      strokeWidth={2}
+                      stroke={globalColor}
+                      strokeWidth={globalThickness}
                       fill="none"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -974,67 +1357,177 @@ function MindMapEditorContent({
 
 
             
-            {/* Shape Preview Overlay */}
-            {isCreatingShape && startPos && (
-              <svg 
+            {/* Shape Preview Overlay - Always visible when creating shapes */}
+            {isCreatingShape && (
+              <div 
                 className="absolute inset-0 pointer-events-none"
-                style={{ zIndex: 11 }}
+                style={{ zIndex: 15 }}
               >
-              {/* Render saved drawing paths */}
-              {drawingPaths.map((path) => (
-                <path
-                  key={path.id}
-                  d={path.path}
-                  stroke={path.stroke}
-                  strokeWidth={path.strokeWidth}
-                  fill={path.fill}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              ))}
-              
-              {/* Current drawing path */}
-              {currentPath && (
-                <path
-                  d={currentPath}
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-
-              {/* Preview shape while dragging */}
-              {isCreatingShape && startPos && (
-                <>
-                  {selectedTool === 'shape-rectangle' && (
-                    <rect
-                      x={startPos.x}
-                      y={startPos.y}
-                      width="0"
-                      height="0"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      fill="rgba(59, 130, 246, 0.1)"
-                      strokeDasharray="5,5"
-                    />
-                  )}
-                  {selectedTool === 'shape-circle' && (
-                    <circle
-                      cx={startPos.x}
-                      cy={startPos.y}
-                      r="0"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      fill="rgba(59, 130, 246, 0.1)"
-                      strokeDasharray="5,5"
-                    />
-                  )}
-                </>
-              )}
-            </svg>
-          )}
+                <svg className="w-full h-full">
+                  {/* Shape Preview */}
+                  {screenStartPos && screenCurrentPos && (() => {
+                    const width = Math.abs(screenCurrentPos.x - screenStartPos.x);
+                    const height = Math.abs(screenCurrentPos.y - screenStartPos.y);
+                    const left = Math.min(screenStartPos.x, screenCurrentPos.x);
+                    const top = Math.min(screenStartPos.y, screenCurrentPos.y);
+                    const centerX = (screenStartPos.x + screenCurrentPos.x) / 2;
+                    const centerY = (screenStartPos.y + screenCurrentPos.y) / 2;
+                    
+                    if (width < 10 || height < 10) return null;
+                    
+                    if (selectedTool === 'shape-rectangle') {
+                      return (
+                        <rect
+                          x={left}
+                          y={top}
+                          width={width}
+                          height={height}
+                          stroke="#3b82f6"
+                          strokeWidth={3}
+                          fill="rgba(59, 130, 246, 0.1)"
+                          strokeDasharray="8,4"
+                        />
+                      );
+                    }
+                    
+                    if (selectedTool === 'shape-rounded-rect') {
+                      const cornerRadius = Math.min(width, height) * 0.1;
+                      return (
+                        <rect
+                          x={left}
+                          y={top}
+                          width={width}
+                          height={height}
+                          rx={cornerRadius}
+                          ry={cornerRadius}
+                          stroke="#3b82f6"
+                          strokeWidth={3}
+                          fill="rgba(59, 130, 246, 0.1)"
+                          strokeDasharray="8,4"
+                        />
+                      );
+                    }
+                    
+                    if (selectedTool === 'shape-circle') {
+                      return (
+                        <ellipse
+                          cx={centerX}
+                          cy={centerY}
+                          rx={width / 2}
+                          ry={height / 2}
+                          stroke="#3b82f6"
+                          strokeWidth={3}
+                          fill="rgba(59, 130, 246, 0.1)"
+                          strokeDasharray="8,4"
+                        />
+                      );
+                    }
+                    
+                    if (selectedTool === 'shape-triangle') {
+                      return (
+                        <polygon
+                          points={`${centerX},${top} ${left},${top + height} ${left + width},${top + height}`}
+                          stroke="#3b82f6"
+                          strokeWidth={3}
+                          fill="rgba(59, 130, 246, 0.1)"
+                          strokeDasharray="8,4"
+                        />
+                      );
+                    }
+                    
+                    if (selectedTool === 'shape-speech-bubble') {
+                      const bubbleWidth = width;
+                      const bubbleHeight = height * 0.75;
+                      const tailWidth = width * 0.15;
+                      const tailHeight = height * 0.25;
+                      
+                      return (
+                        <g>
+                          {/* Main bubble */}
+                          <rect
+                            x={left}
+                            y={top}
+                            width={bubbleWidth}
+                            height={bubbleHeight}
+                            rx={Math.min(bubbleWidth, bubbleHeight) * 0.1}
+                            ry={Math.min(bubbleWidth, bubbleHeight) * 0.1}
+                            stroke="#3b82f6"
+                            strokeWidth={3}
+                            fill="rgba(59, 130, 246, 0.1)"
+                            strokeDasharray="8,4"
+                          />
+                          {/* Tail pointer */}
+                          <polygon
+                            points={`${left + tailWidth},${top + bubbleHeight} ${left + tailWidth * 2},${top + bubbleHeight + tailHeight} ${left + tailWidth * 3},${top + bubbleHeight}`}
+                            stroke="#3b82f6"
+                            strokeWidth={3}
+                            fill="rgba(59, 130, 246, 0.1)"
+                            strokeDasharray="8,4"
+                          />
+                        </g>
+                      );
+                    }
+                    
+                    if (selectedTool === 'shape-arrow') {
+                      // Calculate arrow angle for proper arrowhead orientation
+                      const dx = screenCurrentPos.x - screenStartPos.x;
+                      const dy = screenCurrentPos.y - screenStartPos.y;
+                      const angle = Math.atan2(dy, dx);
+                      const arrowheadSize = 12;
+                      
+                      return (
+                        <g>
+                          <line
+                            x1={screenStartPos.x}
+                            y1={screenStartPos.y}
+                            x2={screenCurrentPos.x}
+                            y2={screenCurrentPos.y}
+                            stroke="#3b82f6"
+                            strokeWidth={4}
+                            strokeDasharray="8,4"
+                          />
+                          <polygon
+                            points={`${screenCurrentPos.x},${screenCurrentPos.y} ${screenCurrentPos.x - arrowheadSize * Math.cos(angle - Math.PI / 6)},${screenCurrentPos.y - arrowheadSize * Math.sin(angle - Math.PI / 6)} ${screenCurrentPos.x - arrowheadSize * Math.cos(angle + Math.PI / 6)},${screenCurrentPos.y - arrowheadSize * Math.sin(angle + Math.PI / 6)}`}
+                            stroke="#3b82f6"
+                            strokeWidth={3}
+                            fill="#3b82f6"
+                          />
+                        </g>
+                      );
+                    }
+                    
+                    if (selectedTool === 'shape-star') {
+                      // Create star path with 5 points
+                      const centerX = (screenStartPos.x + screenCurrentPos.x) / 2;
+                      const centerY = (screenStartPos.y + screenCurrentPos.y) / 2;
+                      const outerRadius = Math.min(width, height) / 2;
+                      const innerRadius = outerRadius * 0.4;
+                      
+                      let points = '';
+                      for (let i = 0; i < 10; i++) {
+                        const angle = (i * Math.PI) / 5 - Math.PI / 2;
+                        const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                        const x = centerX + radius * Math.cos(angle);
+                        const y = centerY + radius * Math.sin(angle);
+                        points += `${x},${y} `;
+                      }
+                      
+                      return (
+                        <polygon
+                          points={points.trim()}
+                          stroke="#3b82f6"
+                          strokeWidth={3}
+                          fill="rgba(59, 130, 246, 0.1)"
+                          strokeDasharray="8,4"
+                        />
+                      );
+                    }
+                    
+                    return null;
+                  })()}
+                </svg>
+              </div>
+            )}
 
             {/* Tool Instructions */}
             {(selectedTool !== "select" || isMiddleMousePressed) && (

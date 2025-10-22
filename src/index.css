@@ -1,5 +1,47 @@
 @import "tailwindcss";
 
+/* Crosshair cursor for pen and shape tools */
+.pen-tool-cursor,
+.pen-tool-cursor *,
+.pen-tool-cursor .react-flow__pane,
+.pen-tool-cursor .react-flow__renderer {
+  cursor: crosshair !important;
+}
+
+/* Custom slider styling */
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.slider::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.slider::-webkit-slider-track {
+  height: 8px;
+  border-radius: 5px;
+  background: #e5e7eb;
+}
+
+.slider::-moz-range-track {
+  height: 8px;
+  border-radius: 5px;
+  background: #e5e7eb;
+}
+
 /* Animated background for home page */
 .animated-bg {
   position: relative;
