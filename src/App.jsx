@@ -9,6 +9,8 @@ import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import apiService from "./services/apiService";
+import Footer from "./components/Footer";
+
 
 function DashboardPage({ mindmaps, onSelect, onCreate }) {
   return <Dashboard mindmaps={mindmaps} onSelect={onSelect} onCreate={onCreate} />;
@@ -107,11 +109,21 @@ function AppContent() {
               onCreate={handleCreate}
               onLogout={logout}
             />
-            <DashboardPage
-              mindmaps={mindmaps}
-              onSelect={handleSelect}
-              onCreate={handleCreate}
-            />
+          <DashboardPage
+            mindmaps={mindmaps}
+            onSelect={handleSelect}
+            onCreate={handleCreate}
+          />
+                  
+          <Footer />
+                  
+
+
+
+
+
+
+
           </ProtectedRoute>
         }
       />
