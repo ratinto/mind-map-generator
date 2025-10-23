@@ -5,6 +5,7 @@ import Dashboard from "./Dashboard";
 import Login from "./components/Login";
 import Signup from "./components/Signup";
 import Home from "./components/Home";
+import PrivacyPolicy from "./PrivacyPolicy";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -101,6 +102,8 @@ function AppContent() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+
       <Route
         path="/dashboard"
         element={
@@ -109,21 +112,12 @@ function AppContent() {
               onCreate={handleCreate}
               onLogout={logout}
             />
-          <DashboardPage
-            mindmaps={mindmaps}
-            onSelect={handleSelect}
-            onCreate={handleCreate}
-          />
-                  
-          <Footer />
-                  
-
-
-
-
-
-
-
+            <DashboardPage
+              mindmaps={mindmaps}
+              onSelect={handleSelect}
+              onCreate={handleCreate}
+            />
+            <Footer />
           </ProtectedRoute>
         }
       />

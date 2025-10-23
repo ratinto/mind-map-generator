@@ -261,7 +261,10 @@ export default function Signup() {
               Home
             </button>
             <span>•</span>
-            <button className="hover:text-gray-700 transition-colors">
+            <button 
+              onClick={() => navigate('/privacy-policy')}
+              className="hover:text-gray-700 transition-colors cursor-pointer"
+            >
               Privacy
             </button>
           </div>
