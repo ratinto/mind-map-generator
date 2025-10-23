@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { FiCheck, FiZap, FiShield, FiUsers } from "react-icons/fi";
-import logo from "../assets/mind-tinker-logo.png";
+import logo from "../assets/mind-tinker1.png";
 import Footer from "./Footer";
 
 export default function Home() {
@@ -28,7 +28,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           {/* Logo */}
           <div className="flex items-center space-x-3">
-            <img src={logo} alt="Mind Tinker" className="w-8 h-8 rounded-lg" />
+            <img src={logo} alt="Mind Tinker" className="w-10 h-10 rounded-lg object-contain" />
             <span className="text-gray-900 font-bold text-lg">Mind Tinker AI</span>
           </div>
 

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { FiEye, FiEyeOff, FiUser, FiMail, FiLock } from "react-icons/fi";
-import logo from "../assets/mind-tinker-logo.png";
+import logo from "../assets/mind-tinker1.png";
 
 export default function Signup() {
   const [username, setUsername] = useState("");
@@ -61,7 +61,7 @@ export default function Signup() {
             <img 
               src={logo} 
               alt="Mind Tinker Logo" 
-              className="w-8 h-8 rounded-md"
+              className="w-10 h-10 rounded-md object-contain"
             />
           </div>
           <h1 className="text-xl font-bold mb-1">Join Mind Tinker</h1>
