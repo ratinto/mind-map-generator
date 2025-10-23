@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactFlow, {
   MiniMap,
@@ -43,8 +43,201 @@ import apiService from "../services/apiService";
 let id = 0;
 const getId = () => `node_${id++}`;
 
+// Create transformation context
+const TransformationContext = createContext();
+
+// Transformation handles component
+const TransformationHandles = ({ nodeId }) => {
+  const handleTransformation = useContext(TransformationContext);
+  
+  console.log('TransformationHandles rendered for node:', nodeId, 'context:', handleTransformation); // Debug
+  
+  const handleStyle = {
+    width: '12px',
+    height: '12px',
+    background: '#ff0000', // Make them red to see them clearly
+    border: '2px solid white',
+    borderRadius: '50%',
+    position: 'absolute',
+    cursor: 'pointer',
+    zIndex: 1000,
+    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+  };
+
+  const handleMouseDown = (e, type) => {
+    console.log('Handle clicked!', type, nodeId); // Simple test
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Show alert to confirm handle is working
+    alert(`Handle ${type} clicked for node ${nodeId}`);
+    
+    // Disable ReactFlow dragging during transformation
+    const reactFlowWrapper = e.target.closest('.react-flow__renderer');
+    if (reactFlowWrapper) {
+      reactFlowWrapper.style.pointerEvents = 'none';
+    }
+    
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let hasMoved = false;
+    let lastDeltaX = 0;
+    let lastDeltaY = 0;
+    
+    const handleMouseMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      moveEvent.stopPropagation();
+      
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      
+      // Only call transformation if mouse has moved significantly and deltas have changed
+      if ((Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) && 
+          (deltaX !== lastDeltaX || deltaY !== lastDeltaY)) {
+        hasMoved = true;
+        lastDeltaX = deltaX;
+        lastDeltaY = deltaY;
+        
+        // Call transformation callback if provided
+        if (handleTransformation) {
+          console.log('Calling transformation:', type, { deltaX, deltaY }); // Debug
+          handleTransformation(nodeId, type, { deltaX, deltaY });
+        }
+      }
+    };
+    
+    const handleMouseUp = (upEvent) => {
+      upEvent.preventDefault();
+      upEvent.stopPropagation();
+      
+      // Re-enable ReactFlow dragging
+      if (reactFlowWrapper) {
+        reactFlowWrapper.style.pointerEvents = 'auto';
+      }
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      
+      // Prevent click from bubbling if we actually transformed
+      if (hasMoved) {
+        upEvent.preventDefault();
+        upEvent.stopPropagation();
+      }
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {/* Corner resize handles */}
+      <div 
+        style={{ 
+          ...handleStyle, 
+          top: '-6px', 
+          left: '-6px', 
+          cursor: 'nw-resize',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'resize-nw')}
+      />
+      <div 
+        style={{ 
+          ...handleStyle, 
+          top: '-6px', 
+          right: '-6px', 
+          cursor: 'ne-resize',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'resize-ne')}
+      />
+      <div 
+        style={{ 
+          ...handleStyle, 
+          bottom: '-6px', 
+          left: '-6px', 
+          cursor: 'sw-resize',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'resize-sw')}
+      />
+      <div 
+        style={{ 
+          ...handleStyle, 
+          bottom: '-6px', 
+          right: '-6px', 
+          cursor: 'se-resize',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'resize-se')}
+      />
+      
+      {/* Edge resize handles */}
+      <div 
+        style={{ 
+          ...handleStyle, 
+          top: '-6px', 
+          left: '50%', 
+          transform: 'translateX(-50%)', 
+          cursor: 'n-resize',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'resize-n')}
+      />
+      <div 
+        style={{ 
+          ...handleStyle, 
+          bottom: '-6px', 
+          left: '50%', 
+          transform: 'translateX(-50%)', 
+          cursor: 's-resize',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'resize-s')}
+      />
+      <div 
+        style={{ 
+          ...handleStyle, 
+          left: '-6px', 
+          top: '50%', 
+          transform: 'translateY(-50%)', 
+          cursor: 'w-resize',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'resize-w')}
+      />
+      <div 
+        style={{ 
+          ...handleStyle, 
+          right: '-6px', 
+          top: '50%', 
+          transform: 'translateY(-50%)', 
+          cursor: 'e-resize',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'resize-e')}
+      />
+      
+      {/* Rotation handle */}
+      <div 
+        style={{ 
+          ...handleStyle, 
+          top: '-24px', 
+          left: '50%', 
+          transform: 'translateX(-50%)', 
+          cursor: 'grab',
+          background: '#ef4444',
+          pointerEvents: 'auto'
+        }} 
+        onMouseDown={(e) => handleMouseDown(e, 'rotate')}
+      />
+    </div>
+  );
+};
+
 // Custom Node Components
-const ShapeNode = ({ data }) => {
+const ShapeNode = ({ data, selected, nodeId }) => {
   const { label, shapeType, style = {}, strokeWidth = 2, color = '#3b82f6' } = data;
   
   const baseStyle = {
@@ -56,16 +249,34 @@ const ShapeNode = ({ data }) => {
     color: '#1f2937',
     minWidth: '80px',
     textAlign: 'center',
+    position: 'relative',
+    outline: selected ? '2px solid #3b82f6' : 'none',
+    outlineOffset: '2px',
     ...style
   };
 
   switch (shapeType) {
     case 'rectangle':
-      return <div style={{ ...baseStyle, borderRadius: '4px' }}>{label}</div>;
+      return (
+        <div style={{ ...baseStyle, borderRadius: '4px' }}>
+          {label}
+          {selected && <TransformationHandles nodeId={nodeId} />}
+        </div>
+      );
     case 'rounded-rect':
-      return <div style={{ ...baseStyle, borderRadius: '12px' }}>{label}</div>;
+      return (
+        <div style={{ ...baseStyle, borderRadius: '12px' }}>
+          {label}
+          {selected && <TransformationHandles nodeId={nodeId} />}
+        </div>
+      );
     case 'circle':
-      return <div style={{ ...baseStyle, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{label}</div>;
+      return (
+        <div style={{ ...baseStyle, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {label}
+          {selected && <TransformationHandles nodeId={nodeId} />}
+        </div>
+      );
     case 'triangle':
       const triangleWidth = parseInt(style?.width) || 80;
       const triangleHeight = parseInt(style?.height) || 70;
@@ -82,6 +293,7 @@ const ShapeNode = ({ data }) => {
             />
           </svg>
           <span style={{ position: 'relative', zIndex: 1, fontSize: '12px', fontWeight: 'bold', marginTop: '10px' }}>{label}</span>
+          {selected && <TransformationHandles nodeId={nodeId} />}
         </div>
       );
     case 'star':
@@ -112,13 +324,17 @@ const ShapeNode = ({ data }) => {
             />
           </svg>
           <span style={{ position: 'relative', zIndex: 1, fontSize: '12px', fontWeight: 'bold' }}>{label}</span>
+          {selected && <TransformationHandles nodeId={nodeId} />}
         </div>
       );
     case 'speech-bubble':
-      return <div style={{ ...baseStyle, borderRadius: '20px', position: 'relative' }}>
-        {label}
-        <div style={{ position: 'absolute', bottom: '-10px', left: '20px', width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: `10px solid ${color}` }}></div>
-      </div>;
+      return (
+        <div style={{ ...baseStyle, borderRadius: '20px', position: 'relative' }}>
+          {label}
+          <div style={{ position: 'absolute', bottom: '-10px', left: '20px', width: '0', height: '0', borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: `10px solid ${color}` }}></div>
+          {selected && <TransformationHandles nodeId={nodeId} />}
+        </div>
+      );
     case 'arrow':
       const arrowWidth = parseInt(style?.width) || 100;
       const arrowHeight = parseInt(style?.height) || 50;
@@ -158,6 +374,7 @@ const ShapeNode = ({ data }) => {
               />
             </svg>
             <span style={{ position: 'relative', zIndex: 1, fontSize: '12px', fontWeight: 'bold', color: '#1f2937', backgroundColor: 'rgba(255, 255, 255, 0.8)', padding: '2px 4px', borderRadius: '2px' }}>{label}</span>
+            {selected && <TransformationHandles nodeId={nodeId} />}
           </div>
         );
       }
@@ -176,14 +393,20 @@ const ShapeNode = ({ data }) => {
             />
           </svg>
           <span style={{ position: 'relative', zIndex: 1, fontSize: '12px', fontWeight: 'bold', marginLeft: '5px' }}>{label}</span>
+          {selected && <TransformationHandles nodeId={nodeId} />}
         </div>
       );
     default:
-      return <div style={baseStyle}>{label}</div>;
+      return (
+        <div style={baseStyle}>
+          {label}
+          {selected && <TransformationHandles nodeId={nodeId} />}
+        </div>
+      );
   }
 };
 
-const TextNode = ({ data }) => (
+const TextNode = ({ data, selected, nodeId }) => (
   <div style={{
     background: 'transparent',
     border: 'none',
@@ -191,16 +414,23 @@ const TextNode = ({ data }) => (
     color: '#1f2937',
     padding: '8px',
     minWidth: '100px',
-    textAlign: 'center'
+    textAlign: 'center',
+    position: 'relative',
+    outline: selected ? '2px solid #3b82f6' : 'none',
+    outlineOffset: '2px'
   }}>
     {data.label}
+    {selected && <TransformationHandles nodeId={nodeId} />}
   </div>
 );
 
 const nodeTypes = {
-  shape: ShapeNode,
-  text: TextNode,
-  default: ({ data }) => (
+  shape: ({ data, selected, id }) => {
+    console.log('ShapeNode rendered:', id, 'selected:', selected); // Debug
+    return <ShapeNode data={data} selected={true} nodeId={id} />; // Force selected for testing
+  },
+  text: ({ data, selected, id }) => <TextNode data={data} selected={selected} nodeId={id} />,
+  default: ({ data, selected, id }) => (
     <div style={{
       padding: '12px 16px',
       borderRadius: '8px',
@@ -209,9 +439,13 @@ const nodeTypes = {
       fontSize: '14px',
       color: '#1f2937',
       minWidth: '80px',
-      textAlign: 'center'
+      textAlign: 'center',
+      outline: selected ? '2px solid #3b82f6' : 'none',
+      outlineOffset: '2px',
+      position: 'relative'
     }}>
       {data.label}
+      {selected && <TransformationHandles nodeId={id} />}
     </div>
   )
 };
@@ -236,6 +470,7 @@ function MindMapEditorContent({
   const autoSaveTimerRef = useRef(null);
   const activityTimerRef = useRef(null);
   const [selectedTool, setSelectedTool] = useState("select");
+  const [selectedNodes, setSelectedNodes] = useState([]);
   const [showShapes, setShowShapes] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -601,6 +836,123 @@ function MindMapEditorContent({
       );
     }
   }, [setNodes]);
+
+  // Node selection handlers for transformation
+  const handleSelectionChange = useCallback(({ nodes: selectedNodes }) => {
+    console.log('Selection changed:', selectedNodes); // Debug
+    setSelectedNodes(selectedNodes);
+  }, []);
+
+  const handleNodeClick = useCallback((event, node) => {
+    // Only handle selection when select tool is active
+    if (selectedTool !== 'select') return;
+    
+    console.log('Node clicked:', node.id, selectedTool); // Debug
+    event.stopPropagation();
+    setSelectedNodes([node]);
+  }, [selectedTool]);
+
+  // Handle shape transformation
+  const handleTransformation = useCallback((nodeId, transformType, delta) => {
+    console.log('Transformation called:', nodeId, transformType, delta); // Debug log
+    
+    setNodes((nds) => 
+      nds.map((node) => {
+        if (node.id !== nodeId) return node;
+        
+        const currentStyle = node.data.style || {};
+        const currentWidth = parseInt(currentStyle.width) || 80;
+        const currentHeight = parseInt(currentStyle.height) || 80;
+        
+        let newStyle = { ...currentStyle };
+        let newPosition = { ...node.position };
+        
+        // Apply transformation based on type
+        switch (transformType) {
+          case 'resize-se': // Southeast corner - resize both width and height
+            newStyle.width = Math.max(20, currentWidth + delta.deltaX);
+            newStyle.height = Math.max(20, currentHeight + delta.deltaY);
+            break;
+            
+          case 'resize-nw': // Northwest corner - resize and adjust position
+            const nwNewWidth = Math.max(20, currentWidth - delta.deltaX);
+            const nwNewHeight = Math.max(20, currentHeight - delta.deltaY);
+            newStyle.width = nwNewWidth;
+            newStyle.height = nwNewHeight;
+            // Adjust position to keep the southeast corner fixed
+            newPosition.x = node.position.x + (currentWidth - nwNewWidth);
+            newPosition.y = node.position.y + (currentHeight - nwNewHeight);
+            break;
+            
+          case 'resize-ne': // Northeast corner
+            newStyle.width = Math.max(20, currentWidth + delta.deltaX);
+            newStyle.height = Math.max(20, currentHeight - delta.deltaY);
+            newPosition.y = node.position.y + delta.deltaY;
+            break;
+            
+          case 'resize-sw': // Southwest corner
+            const swNewWidth = Math.max(20, currentWidth - delta.deltaX);
+            newStyle.width = swNewWidth;
+            newStyle.height = Math.max(20, currentHeight + delta.deltaY);
+            newPosition.x = node.position.x + (currentWidth - swNewWidth);
+            break;
+            
+          case 'resize-e': // East edge - width only
+            newStyle.width = Math.max(20, currentWidth + delta.deltaX);
+            break;
+            
+          case 'resize-w': // West edge - width only
+            const wNewWidth = Math.max(20, currentWidth - delta.deltaX);
+            newStyle.width = wNewWidth;
+            newPosition.x = node.position.x + (currentWidth - wNewWidth);
+            break;
+            
+          case 'resize-s': // South edge - height only
+            newStyle.height = Math.max(20, currentHeight + delta.deltaY);
+            break;
+            
+          case 'resize-n': // North edge - height only
+            const nNewHeight = Math.max(20, currentHeight - delta.deltaY);
+            newStyle.height = nNewHeight;
+            newPosition.y = node.position.y + (currentHeight - nNewHeight);
+            break;
+            
+          case 'rotate':
+            // For now, just add a visual indicator that rotation is detected
+            console.log('Rotation detected for node:', nodeId, delta);
+            // We can implement rotation later by adding a rotation transform
+            return node; // No changes for rotation yet
+            
+          default:
+            return node;
+        }
+        
+        console.log('New style:', newStyle, 'New position:', newPosition); // Debug log
+        
+        return {
+          ...node,
+          position: newPosition,
+          data: {
+            ...node.data,
+            style: newStyle
+          }
+        };
+      })
+    );
+    
+    // Mark as having unsaved changes
+    setHasUnsavedChanges(true);
+    setIsUserActive(true);
+    
+    // Reset activity timer
+    if (activityTimerRef.current) {
+      clearTimeout(activityTimerRef.current);
+    }
+    
+    activityTimerRef.current = setTimeout(() => {
+      setIsUserActive(false);
+    }, autoSaveDelay * 1000);
+  }, [setNodes, autoSaveDelay]);
 
   // Drawing functions for whiteboard
   const getCanvasCoordinates = (event) => {
@@ -1147,7 +1499,10 @@ function MindMapEditorContent({
               }`}
               title="Eraser (E)"
             >
-              <FiMinus className="w-5 h-5" />
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16.24 3.56l4.95 4.94c.78.79.78 2.05 0 2.84L12 20.53a4.008 4.008 0 0 1-5.66 0L2.81 17c-.78-.79-.78-2.05 0-2.84l8.66-8.66c.79-.78 2.05-.78 2.84 0l1.93 1.94zm-2.12 10.61L9.54 9.54l-6.36 6.36a1 1 0 0 0 0 1.41l2.83 2.83a2 2 0 0 0 2.83 0l5.28-5.28z"/>
+                <path d="M20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" opacity="0.6"/>
+              </svg>
             </button>
 
             {/* Color Picker Tool */}
@@ -1562,15 +1917,18 @@ function MindMapEditorContent({
               // Don't reset middle mouse state here - let global handler handle it
             }}
           >
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onPaneClick={selectedTool === 'select' ? handleCanvasClick : undefined}
-              onNodeDoubleClick={handleNodeDoubleClick}
-              nodeTypes={nodeTypes}
+            <TransformationContext.Provider value={handleTransformation}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onPaneClick={selectedTool === 'select' ? handleCanvasClick : undefined}
+                onNodeDoubleClick={handleNodeDoubleClick}
+                onSelectionChange={handleSelectionChange}
+                onNodeClick={handleNodeClick}
+                nodeTypes={nodeTypes}
               fitView
               proOptions={{ hideAttribution: true }}
               className={`bg-white ${selectedTool === 'pen' ? 'pen-tool-cursor' : ''}`}
@@ -1586,6 +1944,7 @@ function MindMapEditorContent({
               nodesDraggable={selectedTool === 'select'}
               nodesConnectable={selectedTool === 'select'}
               elementsSelectable={selectedTool === 'select'}
+              selectNodesOnDrag={false}
               minZoom={0.001}
               maxZoom={1000}
             >
@@ -1602,6 +1961,7 @@ function MindMapEditorContent({
                 }}
               />
             </ReactFlow>
+            </TransformationContext.Provider>
 
             {/* Drawing Paths Overlay - Transformed to match ReactFlow viewport */}
             <div 
