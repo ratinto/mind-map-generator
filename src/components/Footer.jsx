@@ -48,6 +48,14 @@ export default function Footer() {
               <Link to="/dashboard" className="text-gray-400 hover:text-blue-400 transition text-sm cursor-pointer" aria-label="Dashboard">Dashboard</Link>
               <Link to="/signup" className="text-gray-400 hover:text-blue-400 transition text-sm cursor-pointer" aria-label="Sign Up">Sign Up</Link>
               <Link to="/login" className="text-gray-400 hover:text-blue-400 transition text-sm cursor-pointer" aria-label="Login">Login</Link>
+              <Link
+                to="/privacy-policy"
+                className="text-gray-400 hover:text-blue-400 transition text-sm cursor-pointer"
+                aria-label="Privacy Policy"
+              >
+                Privacy Policy
+              </Link>
+
             </nav>
           </div>
 
