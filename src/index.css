@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+button {
+  cursor: pointer;
+}
+
 /* Crosshair cursor for pen and shape tools */
 .pen-tool-cursor,
 .pen-tool-cursor *,
