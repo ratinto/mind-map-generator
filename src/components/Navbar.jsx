@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { FiPlus, FiLogOut, FiChevronDown } from "react-icons/fi";
-import logo from "../assets/mind-tinker1.png";
+import logo from "../assets/mind-tinker-logo-new.png";
 
 export default function Navbar({ onCreate, onLogout }) {
   const { user } = useAuth();
@@ -24,7 +24,7 @@ export default function Navbar({ onCreate, onLogout }) {
               className="flex items-center cursor-pointer hover:opacity-75 transition-opacity"
               onClick={() => navigate('/dashboard')}
             >
-              <img src={logo} alt="Mind Tinker" className="w-9 h-9 rounded-lg mr-3 object-contain" />
+              <img src={logo} alt="Mind Tinker" className="w-8 h-8  rounded-lg mr-3" />
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">Mind Tinker</h1>
               </div>

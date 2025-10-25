@@ -1,7 +1,13 @@
-import { defineConfig } from 'vite'
-import tailwindcss from '@tailwindcss/vite'
+// tailwind.config.js
+import { defineConfig } from 'tailwindcss'
+
 export default defineConfig({
-  plugins: [
-    tailwindcss(),
-  ],
+  theme: {
+    extend: {
+      fontFamily: {
+        signika: ['Signika', 'sans-serif'],
+      },
+    },
+  },
+  plugins: [],
 })

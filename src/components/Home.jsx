@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { FiCheck, FiZap, FiShield, FiUsers } from "react-icons/fi";
-import logo from "../assets/mind-tinker1.png";
+import logo from "../assets/mind-tinker-logo-new.png";
 import Footer from "./Footer";
 
 export default function Home() {
@@ -24,7 +24,7 @@ export default function Home() {
         <div className="particle"></div>
       </div>
       {/* Navigation Header */}
-      <nav className="relative z-10 px-6 py-4 bg-white border-b border-gray-200">
+      <nav className="relative z-10 px-6 py-2 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           {/* Logo */}
           <div className="flex items-center space-x-3">
