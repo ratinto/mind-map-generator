@@ -5,10 +5,13 @@ import Dashboard from "./Dashboard";
 import Login from "./components/Login";
 import Signup from "./components/Signup";
 import Home from "./components/Home";
+import PrivacyPolicy from "./PrivacyPolicy";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import apiService from "./services/apiService";
+import Footer from "./components/Footer";
+
 
 function DashboardPage({ mindmaps, onSelect, onCreate }) {
   return <Dashboard mindmaps={mindmaps} onSelect={onSelect} onCreate={onCreate} />;
@@ -99,6 +102,8 @@ function AppContent() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+
       <Route
         path="/dashboard"
         element={
@@ -112,6 +117,7 @@ function AppContent() {
               onSelect={handleSelect}
               onCreate={handleCreate}
             />
+            <Footer />
           </ProtectedRoute>
         }
       />

@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { FiCheck, FiZap, FiShield, FiUsers } from "react-icons/fi";
 import logo from "../assets/mind-tinker-logo-new.png";
+import Footer from "./Footer";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -26,9 +27,9 @@ export default function Home() {
       <nav className="relative z-10 px-6 py-2 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           {/* Logo */}
-          <div className="flex items-center  space-x-1  ">
-            <img src={logo} alt="Mind Tinker" className="w-8  h-8    rounded-lg" />
-            <span className="text-gray-900  font-semibold  text-lg">Mind Tinker AI</span>
+          <div className="flex items-center space-x-3">
+            <img src={logo} alt="Mind Tinker" className="w-10 h-10 rounded-lg object-contain" />
+            <span className="text-gray-900 font-bold text-lg">Mind Tinker AI</span>
           </div>
 
           {/* Auth Buttons */}
@@ -205,21 +206,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="relative z-10 px-6 py-8 border-t border-gray-200 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-1 mb-4 md:mb-0">
-              <img src={logo} alt="Mind Tinker" className="w-8 h-8 rounded-lg" />
-              <span className="text-gray-900 font-semibold">Mind Tinker AI</span>
-            </div>
-            <div className="flex items-center space-x-6 text-gray-600 text-sm">
-              <a href="#privacy" className="hover:text-gray-900 transition-colors">Privacy</a>
-              <a href="#terms" className="hover:text-gray-900 transition-colors">Terms</a>
-              <a href="#contact" className="hover:text-gray-900 transition-colors">Contact</a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
