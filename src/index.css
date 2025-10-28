@@ -112,9 +112,3 @@ button {
     opacity: 0;
   }
 }
-
-.animated-dotted-background {
-  background-color: #f1f0f9;
-  background-image: radial-gradient(#020202 1px, transparent 1px);
-  background-size: 50px 50px;
-}
