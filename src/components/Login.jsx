@@ -35,7 +35,7 @@ export default function Login() {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 flex items-center justify-center p-2 overflow-hidden">
+    <div className="h-screen bg-gradient-to-br bg-white/80 flex items-center justify-center p-2 overflow-hidden">
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-sm w-full max-h-[95vh] flex flex-col">
         {/* Blue Header Section */}
         <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-6 py-6 text-center text-white flex-shrink-0">
