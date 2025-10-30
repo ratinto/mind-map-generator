@@ -3,6 +3,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { FiEye, FiEyeOff, FiUser, FiLock } from "react-icons/fi";
 import logo from "../assets/mind-tinker1.png";
+// Shadcn UI imports (adjust path if your project places UI components elsewhere)
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -14,23 +18,21 @@ export default function Login() {
   const location = useLocation();
   const { login } = useAuth();
 
-  // Get the intended destination from location state
   const from = location.state?.from?.pathname || "/dashboard";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
+
     const result = await login(username, password);
-    
+
     if (result.success) {
-      // Redirect to intended destination or dashboard
       navigate(from, { replace: true });
     } else {
       setError(result.error);
     }
-    
+
     setLoading(false);
   };
 
@@ -50,24 +52,23 @@ export default function Login() {
           <p className="text-blue-100 text-xs">Sign in to continue your application journey</p>
         </div>
 
-        {/* Form Section */}
+        {/* Form Section (Shadcn UI inputs/buttons) */}
         <div className="px-6 py-4 flex-1 overflow-y-auto">
-          <form onSubmit={handleSubmit} className="space-y-3">
-            {/* Username Field */}
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="username" className="block text-xs font-medium text-gray-700 mb-1">
+              <Label htmlFor="username" className="text-xs font-medium text-gray-700 mb-1 block">
                 Username
-              </label>
+              </Label>
               <div className="relative">
-                <input
+                <Input
                   id="username"
                   name="username"
                   type="text"
                   required
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 text-sm"
                   placeholder="Enter your username"
+                  className="pr-10 text-sm"
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                   <FiUser className="h-4 w-4 text-gray-400" />
@@ -75,37 +76,31 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-xs font-medium text-gray-700 mb-1">
+              <Label htmlFor="password" className="text-xs font-medium text-gray-700 mb-1 block">
                 Password
-              </label>
+              </Label>
               <div className="relative">
-                <input
+                <Input
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 text-sm"
                   placeholder="Enter your password"
+                  className="pr-10 text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  {showPassword ? (
-                    <FiEyeOff className="h-4 w-4" />
-                  ) : (
-                    <FiEye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Forgot Password Link */}
             <div className="text-right">
               <button
                 type="button"
@@ -115,19 +110,13 @@ export default function Login() {
               </button>
             </div>
 
-            {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-2">
                 <p className="text-xs text-red-700">{error}</p>
               </div>
             )}
 
-            {/* Sign In Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm"
-            >
+            <Button type="submit" disabled={loading} className="w-full flex items-center justify-center text-sm">
               {loading ? (
                 <div className="flex items-center">
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -137,16 +126,15 @@ export default function Login() {
                   Signing in...
                 </div>
               ) : (
-                <>
+                <span className="flex items-center">
                   Sign In
                   <svg className="ml-2 -mr-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd"></path>
                   </svg>
-                </>
+                </span>
               )}
-            </button>
+            </Button>
 
-            {/* Divider */}
             <div className="relative my-3">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
@@ -156,11 +144,7 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Google Sign In */}
-            <button
-              type="button"
-              className="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-all text-sm"
-            >
+            <Button type="button" variant="outline" className="w-full flex items-center justify-center py-2 px-4 text-sm">
               <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -168,9 +152,8 @@ export default function Login() {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
               Sign in with Google
-            </button>
+            </Button>
 
-            {/* Sign Up Link */}
             <div className="text-center pt-3">
               <p className="text-xs text-gray-600">
                 Don't have an account?{' '}
@@ -185,7 +168,6 @@ export default function Login() {
             </div>
           </form>
 
-          {/* Footer Links */}
           <div className="mt-4 flex justify-center space-x-3 text-xs text-gray-500">
             <button
               onClick={() => navigate('/')}
