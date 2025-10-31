@@ -11,6 +11,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import apiService from "./services/apiService";
 import Footer from "./components/Footer";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 
 function DashboardPage({ mindmaps, onSelect, onCreate }) {
@@ -125,10 +126,16 @@ function AppContent() {
         path="/mindmap/:id"
         element={
           <ProtectedRoute>
+            <Navbar
+              onCreate={handleCreate}
+              onLogout={logout}
+            />
             <MindMapRoute
               mindmaps={mindmaps}
               onSelect={handleSelect}
+              selectedId={selectedId}
             />
+            <Footer />
           </ProtectedRoute>
         }
       />
@@ -138,10 +145,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

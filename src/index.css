@@ -112,3 +112,19 @@ button {
     opacity: 0;
   }
 }
+
+/* Global light/dark base styles */
+@layer base {
+  html {
+    background-color: theme(colors.white);
+    color: theme(colors.gray.900);
+  }
+  html.dark {
+    color-scheme: dark;
+    background-color: theme(colors.gray.900);
+    color: theme(colors.gray.100);
+  }
+  body {
+    min-height: 100vh;
+  }
+}
